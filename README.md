@@ -1,2 +1,2 @@
-# C-Trophy
-A claustrophobic maze game with incredible graphics.
+# AMaze
+A claustrophobic circular maze game
