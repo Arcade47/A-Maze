@@ -34,6 +34,7 @@ var maze;
 // add event listenersggg
 document.addEventListener("keydown", keydown);
 document.addEventListener("keyup", keyup);
+window.addEventListener("deviceorientation", handleOrientation, true); // for mobile :)
 
 // prepare values for vars
 function reset(nrings) {
@@ -976,6 +977,14 @@ function keyup(e) {
     // down
     if (e.keyCode == 40) { player.downmove = false; }
 }
+function handleOrientation(event) {
+    var absolute = event.absolute;
+    var alpha    = event.alpha;
+    var beta     = event.beta; // front - back (-180, 180)
+    var gamma    = event.gamma; // left - right (-90, 90)
+    player.pos.x += player_speed*(gamma/90);
+    player.pos.y += player_speed*(beta/180);
+  }
 
 // start game loop
 update();
