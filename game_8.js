@@ -27,6 +27,7 @@ var walls = [];
 var start_rot;
 var hole_problem_level = 1; // layer at which overlap problems need to be resolved
 var player;
+var med; // TODO adjust that it can be multiple meds
 var network;
 var maze;
 
@@ -58,6 +59,7 @@ function reset(nrings) {
     player = new Player();
     network = new MazeNetworkRandom();
     maze = new MazeRandom(network);
+    med = new Med();
 }
 
 // classes
@@ -256,6 +258,47 @@ class Player {
         // debug: draw vel
         // draw_line([this.pos, {x: this.pos.x + this.vel.x, y: this.pos.y + this.vel.y}], "white", 3);
 
+    }
+}
+
+class Med {
+    constructor() {
+        this.place();
+        this.radius = 4;
+        this.collected = false;
+        this.color = "blue";
+    }
+    place() {
+        // TODO: locating a cell position
+        // select random ring except innermost
+        var rri = Math.round(1 + (Math.random()*(n_rings - 3)));
+        console.log(rri);
+        var length_ring = network.rings[rri].length;
+        var rci = Math.floor(Math.random()*length_ring);
+        this.pos = network.rings[rri][rci].get_pos();
+    }
+    check_collected() {
+        // check for overlap
+        if (distance(this.pos, player.pos) < (this.radius + player.radius)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    effect() {
+        // shrink player instantly back to start size
+        player.radius = player_size;
+    }
+    update() {
+        if (this.check_collected() && !this.collected) {
+            this.effect();
+            this.collected = true;
+        }
+    }
+    render() {
+        if (!this.collected) {
+            draw_circ(this.radius, this.pos, this.color);
+        }
     }
 }
 
@@ -664,57 +707,6 @@ class MazeRandom {
         network.previous_cell = network.current_cell; // TODO: make copy?
         network.current_cell = rand_i;
     }
-    debug_dig(dir) {
-        // debug: dir: -1 = left, 1 = right
-        // stay in same ring space --> only remove walls
-        // TODO only allow this function to 
-        var c = network.current_cell;
-        var cri = network.current_cell.ring_ind;
-        var cir = network.current_cell.ind_in_ring;
-        // TODO: consider case when n_walls < n_cells
-        var n_cells = network.rings[cri].length;
-        var n_walls = this.rings[cri].walls.length;
-        if (dir < 0 && cir == 0) {
-             // CASE 2
-            var wall_rmv_ind = 0;
-            var rir = network.rings[cri].length - 1;
-        } else if (dir > 0 && cir == network.rings[cri].length - 1) {
-            // CASE 1
-            var wall_rmv_ind = 0;
-            var rir = 0;
-        } else if (dir < 0) {
-            var wall_rmv_ind = (cir + dir + 1)%network.rings[cri].length;
-            var rir = cir + dir;
-        } else {
-            var wall_rmv_ind = cir + dir;
-            var rir = cir + dir;
-        }
-        if (n_cells > n_walls) { // doubled
-            if (dir == -1) {
-                if (rir == n_cells - 1) {
-                    wall_rmv_ind = 0;
-                } else if (rir%2 == 1) {
-                    wall_rmv_ind = Math.ceil(rir/2);
-                } else {
-                    wall_rmv_ind = -1;
-                }
-            } else {
-                if (rir%2 == 0) {
-                    wall_rmv_ind = Math.floor(rir/2);
-                } else {
-                    wall_rmv_ind = -1;
-                }
-            }
-        }
-        if (wall_rmv_ind >= 0 && cri > 0) {
-            this.rings[cri].walls[wall_rmv_ind].dug = true;
-        }
-        // store previous cell and set current cell to new position
-        c.visited = true;
-        network.visited_cells.push(c);
-        network.previous_cell = network.current_cell; // TODO: make copy?
-        network.current_cell = new Cell(cri, rir);
-    }
     dig_all() {
         var all_dug = false;
         while (!all_dug) {
@@ -940,6 +932,7 @@ reset(min_rings);
 function update() {
     // run changes (update objects)
     player.update();
+    med.update();
     // draw all changes
     draw();
     // get animation going
@@ -954,6 +947,7 @@ function draw() {
     maze.render();
     // draw player
     player.render();
+    med.render();
 }
 
 // event listener actions
