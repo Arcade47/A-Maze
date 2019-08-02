@@ -983,7 +983,7 @@ function handleOrientation(event) {
     var beta     = event.beta; // front - back (-180, 180)
     var gamma    = event.gamma; // left - right (-90, 90)
     player.pos.x += player_speed*(gamma/90);
-    player.pos.y += player_speed*((beta + 90)/90);
+    player.pos.y += player_speed*((beta)/180);
   }
 
 // start game loop
