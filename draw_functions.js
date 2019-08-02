@@ -1,7 +1,7 @@
 // inputs: radius, position on canvas and context
 
-canv_w = 500;
-canv_h = 500;
+canv_w = 750;
+canv_h = 750;
 
 // TODO implement scrolling
 

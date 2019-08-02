@@ -7,6 +7,8 @@ player control via arrow keys
 */
 
 // init global vars
+var min_rings = 5;
+var max_rings = 12;
 var n_rings;
 var ring_spacing;
 var ring_thickness;
@@ -24,25 +26,23 @@ var rings = [];
 var walls = [];
 var start_rot;
 var hole_problem_level = 1; // layer at which overlap problems need to be resolved
-
-// debug flags
-var no_virt_holes = false;
-var debug_draw_toggle = false;
+var player;
+var network;
+var maze;
 
 // add event listenersggg
 document.addEventListener("keydown", keydown);
 document.addEventListener("keyup", keyup);
-document.addEventListener("click", mouseclick);
 
 // prepare values for vars
-function add_values() {
+function reset(nrings) {
     // global vars that are initialized before
-    n_rings = 8;            // rings of maze
+    n_rings = nrings;            // rings of maze
     ring_spacing = 30;      // spacing of maze rings in px
     ring_thickness = 5;    // diameter of maze walls in px
-    n_meds = 5;             // how many items need to be collected before allowed to exit
-    size_grow = 0.005;          // increase of player diameter over a frame
-    player_size = 3;        // initial player diameter in px
+    n_meds = 1;//Math.floor(n_rings/2);             // how many items need to be collected before allowed to exit
+    size_grow = 0.0075;          // increase of player diameter over a frame
+    player_size = 1.5;        // initial player diameter in px
     player_speed = 2;       // movement speed
     collision_steps = 30;   // determines how many times per draw the collision resolution function is called
     max_holes = 6;          // number of holes for middle rings
@@ -53,341 +53,14 @@ function add_values() {
     // derived vars
     // TODO: max distance   // formula that takes into account player_speed, size_grow and ring_spacing
     // max_distance = ;
+    
+    // init classes
+    player = new Player();
+    network = new MazeNetworkRandom();
+    maze = new MazeRandom(network);
 }
 
 // classes
-
-class MazeNetwork {
-
-    // TODO layers are lists of nodes, i.e. network --> replace layers with network
-    constructor(n_layers=n_rings, max_open_nodes=max_holes) {
-        // input class variables
-        this.n_layers = n_layers;
-        this.max_open_nodes = max_open_nodes;
-
-        // setup network (random node positions)
-        this.n_nodes_network = this.generate_number_holes();
-        this.n_dead_ends_network = this.generate_dead_end_numbers();
-        this.n_virtual_nodes_network = this.generate_virtual_numbers();
-
-        // create first network layout and loop randomly until valid
-        // valid means: no overlaps in node order
-        this.create_network_layout();
-        while (this.overlap_network()) {
-            this.create_network_layout();
-        }
-
-    }
-    create_network_layout() {
-        this.layers = this.setup_layers_with_nodes();
-        this.setup_dead_ends();
-        this.add_virt_nodes();
-        this.connect_nodes();
-    }
-    generate_number_holes() {
-
-        // following schmematic: 1,2,2,4,4,8,8,16,16,...,1
-        var num = 2;
-        var num_seq = [1];
-        while (num_seq.length < this.n_layers - 1) {
-            num_seq.push(num);
-            num_seq.push(num);
-            if (num < 8) { num *= 2; } // clip to upper bound
-        }
-        // handle case if even number --> add last num
-        if (num_seq.length < this.n_layers) {
-            num_seq.push(num);
-        }
-        num_seq[num_seq.length-1] = 1;
-        return num_seq;
-    }
-    generate_dead_end_numbers() {
-    
-        // 0,1,0,1,0,2,0,4,0,8,0,...
-        var num = 1;
-        var num_seq = [];
-        while (num_seq.length < this.n_layers - 1) {
-            num_seq.push(0);
-            num_seq.push(num);
-            if (num_seq.length >= 4) {
-                // clip to upper bound
-                if (num < 2) {
-                    num *= 2;
-                } else {
-                    num *= 0;
-                }
-            }
-        }
-        // handle case if even number --> add last num
-        if (num_seq.length < this.n_layers) {
-            num_seq.push(0);
-        }
-        // last layer: no dead ends
-        num_seq[num_seq.length-1] = 0;
-        
-        return num_seq;
-    }
-    generate_virtual_numbers() {
-        var num = 1;
-        // assuming n >= 2
-        var num_seq = [0,0];
-        while (num_seq.length < this.n_layers - 1) {
-            num_seq.push(num);
-            num_seq.push(num);
-            // clip to upper bound
-            if (num < 4) {
-                num *= 2;
-            }
-        }
-        // handle case if even number --> add last num
-        if (num_seq.length < this.n_layers) {
-            num_seq.push(num);
-        }
-        return num_seq;
-    }
-    setup_layers_with_nodes() {
-        var layers = [];
-        for (let index = 0; index < this.n_layers; index++) {
-            layers.push([]);
-            if (index == 0 || index == this.n_layers - 1) {
-                // only one node
-                layers[layers.length-1].push(new Node(index, 0, this));
-            } else {
-                var n_nodes = this.n_nodes_network[index] - this.n_virtual_nodes_network[index];
-                for (let index2 = 0; index2 < n_nodes; index2++) {
-                    layers[layers.length-1].push(new Node(index, index2, this));
-                }
-            }
-        }
-        return layers;
-    }
-    setup_dead_ends() {
-        // set the dead ends, starting from last layer moving upwards
-        var last_layer_size = this.max_open_nodes; // keeping track of n nodes in last layer
-        for (let index = this.layers.length-1; index >= 0; index--) {
-            const layer = this.layers[index];
-            var n_dead_ends = this.n_dead_ends_network[index];
-            // adjust if last_layer_size smaller than current layer.length
-            if (last_layer_size < layer.length && n_dead_ends < last_layer_size) {
-                n_dead_ends = layer.length - last_layer_size;
-            }
-            // different case second-last layer: all but one are dead ends
-            if (index == this.layers.length-2) {
-                n_dead_ends = layer.length - 1;
-            }
-            var shuffle_array = [];
-            for (let i = 0; i < n_dead_ends; i++) {
-                shuffle_array.push(true);
-            }
-            for (let i = 0; i < layer.length - n_dead_ends; i++) {
-                shuffle_array.push(false);
-            }
-            shuffle_array = shuffle(shuffle_array);
-            for (let i = 0; i < shuffle_array.length; i++) {
-                this.layers[index][i].dead_end = shuffle_array[i];
-            }
-            last_layer_size = layer.length;
-        }
-    }
-    add_virt_nodes_layer(index, index2) {
-        // add virtual node in in next layer if dead end or already virtual
-        if (this.layers[index][index2].dead_end || this.layers[index][index2].virtual) {
-            var virt_node = new Node(index + 1, index2, this);
-            virt_node.virtual = true;
-            this.layers[index + 1].splice(index2, 0, virt_node);
-            // refresh all following IDs in this layer
-            for (let index3 = index2 + 1; index3 < this.layers[index + 1].length; index3++) {
-                this.layers[index + 1][index3].id++;
-            }
-            this.layers[index + 1][index2].set_parent(this.layers[index][index2]);
-        }
-    }
-    add_virt_nodes() {
-        for (let index = 0; index < this.layers.length - 1; index++) {
-            for (let index2 = 0; index2 < this.layers[index].length; index2++) {
-                this.add_virt_nodes_layer(index, index2);
-            }
-        }
-    }
-    connect_nodes() {
-
-        for (let index = this.layers.length-1; index > 0; index--) {
-            // going backwards, stopping at second layer
-            // setting the parent of each node
-            var upper_passage_count = 0;
-            for (let i = 0; i < this.layers[index - 1].length; i++) {
-                const node = this.layers[index - 1][i];
-                if (!node.dead_end && !node.virtual) { upper_passage_count++; }
-            }
-            // identify virtual nodes in this layer
-            var nonvirtual_count = this.layers[index].length;
-            var nonvirtual_ids = [];
-            for (let i = 0; i < this.layers[index].length; i++) {
-                const node = this.layers[index][i];
-                if (node.virtual) {
-                    nonvirtual_count--;
-                } else {
-                    nonvirtual_ids.push(node.id);
-                }
-            }
-        
-            if (nonvirtual_count == upper_passage_count) { // one child per parent
-                var upper_id = 0;
-                for (let i = 0; i < nonvirtual_ids.length; i++) {
-                    const nonvirtual_id = nonvirtual_ids[i];
-                    for (let j = upper_id; j < this.layers[index - 1].length; j++) {
-                        if (!this.layers[index - 1][j].dead_end && !this.layers[index - 1][j].virtual) {
-                            this.layers[index][nonvirtual_id].set_parent(this.layers[index - 1][j]);
-                            upper_id = j + 1;
-                            break;
-                        }
-                    }
-                }
-        
-            }
-            else { // multiple children per parent
-        
-                var n_children_exceed = nonvirtual_count - upper_passage_count;
-                // pick randomly from among parents which have multiple children - store number
-                for (var i=0; i<n_children_exceed; i++) {
-                    var rand_id = Math.floor(Math.random()*this.layers[index - 1].length);
-                    // make sure no dead end or virtual node is targetted
-                    var count = 0;
-                    while ((this.layers[index - 1][rand_id].dead_end || this.layers[index - 1][rand_id].virtual) && count < 1000) {
-                        var rand_id = Math.floor(Math.random()*this.layers[index - 1].length);
-                        count++;
-                    }
-                    if (count >= 1000) {
-                        console.log('problem here   ' + count);
-                    }
-                    this.layers[index - 1][rand_id].n_children++;
-                }
-                var lower_id = 0;
-        
-                for (let i = 0; i < this.layers[index - 1].length; i++) {
-                    const upper_node = this.layers[index - 1][i];
-                    var n_c = upper_node.n_children + 1; // + 1 because only exceeded children are noted --> one at least
-                    if (!upper_node.dead_end && !upper_node.virtual) {
-                        for (let j = 0; j < n_c; j++) {
-                            while (this.layers[index][lower_id].virtual) {
-                                lower_id++;
-                            }
-                            this.layers[index][lower_id].set_parent(this.layers[index - 1][i]);
-                            lower_id++;
-                        }
-                    }
-                }
-        
-            }
-        }
-    }
-    overlap_network() {
-        // returns false when there is no overlap
-        for (let index = 0; index < this.layers.length - 1; index++) {
-            for (let index2 = 0; index2 < this.layers[index].length - 1; index2++) {
-                const node = this.layers[index][index2];
-                // get rightmost child
-                var right_id = node.get_id_of_rightmost_child();
-                for (let index3 = index2 + 1; index3 < this.layers[index].length; index3++) {
-                    const node_right = this.layers[index][index3];
-                    // get leftmost child
-                    var left_id = node_right.get_id_of_leftmost_child();
-                    if (left_id < right_id) {
-                        return true;
-                    }
-                }
-            }
-        }
-        // no overlap problems
-        return false;
-    }
-    render(current_node = [-1, -1]) {
-        // makes sure the algo for the logical layout of maze is correct
-        function get_coord(layer_ind, node_id) {
-            var y_num = 10 + layer_ind*y_increase;
-            var x_num = 10 + node_id*x_increase;
-            return {x: x_num, y: y_num};
-        }
-        var y_increase = canvas.height/(this.layers.length*1.5) - 5;
-        var x_increase = canvas.width/(this.max_open_nodes*2) - 5;
-        var current_y = 10;
-        var current_x = 10;
-        var start_x = current_x;
-        for (let index = 0; index < this.layers.length; index++) {
-            const l = this.layers[index];
-            current_x = start_x;
-            for (let index2 = 0; index2 < l.length; index2++) {
-                const n = l[index2];
-                var n_color = "white";
-                if (n.dead_end) { n_color = "red"; }
-                if (n.virtual) { n_color = "grey"; }
-                if (n.ind == current_node[0] && n.id == current_node[1]) { n_color = "green"};
-                draw_circ_outline_debug(5, {x: current_x, y: current_y}, "black", n_color);
-                // connect to parent
-                for (let index3 = 0; index3 < n.parent.length; index3++) {
-                    const p = n.parent[index3];
-                    draw_line_debug([get_coord(p.ind, p.id), {x: current_x, y: current_y}], "black")
-                }
-                // set next position
-                current_x += x_increase;
-            }
-            current_y += y_increase;
-        }
-    }
-}
-
-class Node {
-    // virtual unit representing the maze structure
-    constructor(ind, id, network) {
-        this.ind = ind;
-        this.id = id;
-        this.parent = [];
-        this.children = [];
-        this.dead_end = false;
-        this.virtual = false;
-        this.n_children = 0;
-        this.coord = 0;
-        this.network = network;
-    }
-    set_parent(parent) {
-        this.parent = [parent];
-        // automatically sets children accordingly
-        // but first search if child already included
-        var child_included = false;
-        for (let index = 0; index < this.network.layers[parent.ind][parent.id].children.length; index++) {
-            var child = this.network.layers[parent.ind][parent.id].children[index];
-            if (child.ind == this.ind && child.id == this.id) {
-                child_included = true;
-                break;
-            }
-        }
-        if (!child_included) {
-            this.network.layers[parent.ind][parent.id].children.push(this);
-            // important flag to store number of children
-            this.network.layers[parent.ind][parent.id].n_children = this.network.layers[parent.ind][parent.id].children.length;
-        }
-    }
-    get_id_of_leftmost_child() {
-        var min = Infinity;
-        for (let index = 0; index < this.children.length; index++) {
-            var child = this.children[index];
-            if (child.id < min) {
-                min = child.id;
-            }
-        }
-        return min;
-    }
-    get_id_of_rightmost_child() {
-        var max = -Infinity;
-        for (let index = 0; index < this.children.length; index++) {
-            var child = this.children[index];
-            if (child.id > max) {
-                max = child.id;
-            }
-        }
-        return max;
-    }
-}
 
 class Player {
     constructor() {
@@ -463,18 +136,6 @@ class Player {
             this.set_relevant_coll_balls_wall(player_dist_center);
         }
     }
-    circular_move(CCW) {
-        // get radians
-        var pos_in_rad = coord_to_rad(this.pos);
-        // get distance
-        var dist = distance(this.pos, center_coord);
-        // add radians
-        var new_rad = pos_in_rad;
-        if (CCW) { new_rad -= 0.05; } // TODO standardize on ring diameter
-        if (!CCW) { new_rad += 0.05; }
-        // convert back to coord
-        this.pos = get_exact_coord(new_rad, dist, false);
-    }
     resolve_collisions() {
 
         // run in simulation steps: partition the velocity
@@ -514,7 +175,36 @@ class Player {
                 }
             }
         }
-        // TODO: cycle through all collision balls: if remaining overlap - death
+    }
+    win() {
+        // player distance to center large enough?
+        if (this.current_ring_ind > n_rings) {
+            if (n_rings < max_rings) {
+                var new_n_rings = n_rings + 1;
+            } else {
+                var new_n_rings = max_rings;
+            }
+            reset(new_n_rings);
+        }
+    }
+    lose() {
+        // cycle through all collision balls again: if remaining overlap - death
+        this.set_relevant_coll_balls();
+        for (let index = 0; index < this.collision_balls.length; index++) {
+            const cball = this.collision_balls[index];
+            if (distance(this.pos, cball) < (this.radius + ring_thickness/2)) {
+                var overlap = (this.radius + ring_thickness/2) - distance(this.pos, cball);
+                if (overlap > 0.1) {
+                    if (n_rings == min_rings) {
+                        // TODO: game over
+                        reset(n_rings);
+                    } else {
+                        reset(n_rings - 1);
+                    }
+                    break;
+                }
+            }
+        }
     }
     update() {
         // copy old pos (before changes) for velocity derivation
@@ -545,7 +235,11 @@ class Player {
         this.set_relevant_coll_balls();
 
         // increase in size
-        // this.radius += size_grow;
+        this.radius += size_grow;
+
+        // check if maze solved or player crushed
+        this.win();
+        this.lose();
     }
     render() {
 
@@ -562,230 +256,6 @@ class Player {
         // debug: draw vel
         // draw_line([this.pos, {x: this.pos.x + this.vel.x, y: this.pos.y + this.vel.y}], "white", 3);
 
-    }
-}
-
-class Maze {
-    // TODO replaces old rings array
-    constructor(network) {
-        this.network = network;
-        this.rings = [];
-        this.randomly_init_rings();
-        this.set_coords_of_innermost_ring();
-        this.resolve_ring_problems();
-    }
-    randomly_init_rings() {
-        for (let index = 0; index < this.network.layers.length; index++) {
-            var new_ring = new Ring(index, Math.random(), this.network.layers[index].length);
-            this.rings.push(new_ring);
-        }
-    }
-    set_coords_of_innermost_ring() {
-        // set maximum rotation if adjacent rings have same number of holes
-        // special case innermost ring: rotation does not matter
-        var coords = circumference_coords_simpler(this.network.layers[0].length, start_rot);
-        this.rings[0].set_holes(coords);
-    }
-    resolve_overlapping_holes() {
-
-        const layer = this.network.layers[hole_problem_level];
-        start_rot = (start_rot + 0.005)%1; // TODO set rotation angle proportional to circumference
-        var coords = circumference_coords_simpler(layer.length, start_rot);
-        this.rings[hole_problem_level].set_holes(coords);
-        var this_hcoords = this.rings[hole_problem_level - 1].holes_coords;
-        var inner_hcoords = this.rings[hole_problem_level].holes_coords;
-        if (!this.overlap_holes(this_hcoords, inner_hcoords, hole_problem_level - 1)) {
-            var relevant_id = 0;
-            for (let index = 0; index < this.network.layers[hole_problem_level - 1].length; index++) {
-                var parent_node = this.network.layers[hole_problem_level - 1][index];
-                if (parent_node.virtual) {
-                    relevant_id = parent_node.id;
-                }
-                if (hole_problem_level < n_rings - 1 && this.overlap_children(parent_node)) { // not last ring
-                    // success
-                    start_rot = Math.random();
-                    // already add the walls of this layer
-                    this.set_walls_one_layer(hole_problem_level);
-                    this.remove_virtuals_debug_layer(hole_problem_level);
-                    hole_problem_level++;
-                    this.rings[parent_node.ind].overlaps = [];
-                    this.rings[parent_node.ind + 1].debug_holes_inner = [];
-                    break;
-                }
-            }
-        }
-    }
-    set_walls_one_layer(index) {
-        var tol = (this.rings[index].diameter/2)*0.00005;
-        for (let index2 = 0; index2 < this.network.layers[index - 1].length; index2++) {
-            const node = this.network.layers[index - 1][index2];
-            // get position (simpler algorithm)
-            // get correct indices
-            var min_id = node.children[0].id;
-            var max_id = node.children[node.children.length-1].id;
-            // then convert holes coords to start/end of actual holes
-            var hcoords_parent = holes_from_coords(this.rings[index - 1].holes_coords);
-            var h_coords_children_layer = holes_from_coords(this.rings[index].holes_coords);
-            var min = h_coords_children_layer[min_id].start;
-            var max = h_coords_children_layer[max_id].end;
-            // assuming parent start is always between bounds of children
-            this.rings[index].add_wall((min - tol)%(2*Math.PI));
-        }
-    }
-    remove_virtuals_debug_layer(index) {
-
-        var non_virtual_holes = [];
-        var virtual_holes = [];
-    
-        // convert to holes coords
-        var hcoords = holes_from_coords(this.rings[index].holes_coords);
-    
-        // omit virtual nodes
-        for (let index2 = 0; index2 < hcoords.length; index2++) {
-            const node = this.network.layers[index][index2];
-            if (!node.virtual) {
-                non_virtual_holes.push(hcoords[index2]);
-            } else {
-                virtual_holes.push(hcoords[index2]);
-            }
-        }
-    
-        // debug
-        this.rings[index].debug_holes = non_virtual_holes;
-        this.rings[index].debug_holes_inner = virtual_holes;
-    
-    }
-    remove_virtuals() {
-        for (let index = 0; index < this.rings.length; index++) {
-            // BIGTODO
-            
-            var non_virtual_holes = [];
-            var virtual_holes = [];
-    
-            // convert to holes coords
-            var hcoords = holes_from_coords(this.rings[index].holes_coords);
-    
-            // omit virtual nodes
-            for (let index2 = 0; index2 < hcoords.length; index2++) {
-                const node = this.network.layers[index][index2];
-                if (!node.virtual) {
-                    non_virtual_holes.push(hcoords[index2]);
-                } else {
-                    virtual_holes.push(hcoords[index2]);
-                }
-            }
-    
-            this.rings[index].set_holes_hcoords(non_virtual_holes);
-        }
-    }
-    resolve_overlaps_last_layer(parent_node) {
-        const layer = this.network.layers[hole_problem_level]; // children layer
-        start_rot = (start_rot + 0.005)%1; // TODO set rotation angle proportional to circumference
-        var coords = circumference_coords_simpler(layer.length, start_rot);
-        this.rings[hole_problem_level].set_holes(coords);
-        var this_hcoords = this.rings[hole_problem_level - 1].holes_coords;
-        var inner_hcoords = this.rings[hole_problem_level].holes_coords;
-        if (!this.overlap_holes(this_hcoords, inner_hcoords, hole_problem_level - 1)) {
-    
-            // var parent_node = layers[hole_problem_level - 1][index];
-    
-            if (this.overlap_children(parent_node)) {
-                // success
-                // already add the walls of this layer
-                this.set_walls_one_layer(hole_problem_level);
-                this.remove_virtuals_debug_layer(hole_problem_level);
-                hole_problem_level++;
-                this.rings[parent_node.ind].overlaps = [];
-                this.rings[parent_node.ind + 1].debug_holes_inner = [];
-            } else {
-                this.rings[parent_node.ind + 1].debug_holes_inner = [this_hcoords[parent_node.id]];
-            }
-    
-        }
-    }
-    overlap_holes(this_coords, new_coords, inner_layer_ind) {
-
-        var output = false; // flags if overlaps detected
-    
-        var inner_holes = holes_from_coords(this_coords);
-        var this_holes = holes_from_coords(new_coords);
-    
-        for (let index = 0; index < inner_holes.length; index++) {
-            var inner_coord = inner_holes[index];
-            for (let index2 = 0; index2 < this_holes.length; index2++) {
-            // for (let index2 = 1; index2 < 3; index2++) {
-                var this_coord = this_holes[index2];
-                var problem = overlap_two_holes(this_coord, inner_coord);
-    
-                if (problem[0]) {
-                    output = true;
-                }
-            }
-        }
-    
-        return output;
-    }
-    overlap_children(node) {
-        // 1. get rad of parent_node.start
-        var parent_layer_ind = node.ind;
-        var parent_id = node.id;
-        var parent_hcoords = holes_from_coords(this.rings[parent_layer_ind].holes_coords);
-        var rad = parent_hcoords[parent_id].start;
-        // 2. get children bounds
-        var h_coords_children_layer = holes_from_coords(this.rings[parent_layer_ind + 1].holes_coords);
-        // 2.1 case: only one child --> set larger bounds
-        if (node.children.length == 1) {
-            var child_id = node.children[0].id;
-            var n_nodes_child_layer = this.network.layers[parent_layer_ind + 1].length;
-            var next_child_id = (child_id + 1)%n_nodes_child_layer; // handle wrap-around case
-            var min = h_coords_children_layer[child_id].start;
-            var max = h_coords_children_layer[next_child_id].start;
-        }
-        // 2.2 case: more than one child
-        else {
-            // get correct indices
-            var min_id = node.children[0].id;
-            var max_id = node.children[node.children.length-1].id;
-            // then convert holes coords to start/end of actual holes
-            var min = h_coords_children_layer[min_id].start;
-            var max = h_coords_children_layer[max_id].end;
-        }
-        var bounds = {start: min, end: max};
-        // 3. test if overlap
-        var test = rad_between_bounds(rad, bounds);
-        // debug
-        if (!test) {
-            this.rings[parent_layer_ind].overlaps = [rad];
-            this.rings[parent_layer_ind + 1].debug_holes_inner = [bounds];
-        }
-        return test;
-        // }
-    }
-    resolve_ring_problems() {
-        while (hole_problem_level < n_rings) {
-            if (hole_problem_level < n_rings - 1) {
-                this.resolve_overlapping_holes();
-            } else if (hole_problem_level == n_rings - 1) {
-                // get relevant node
-                var rel_ind = 0;
-                for (let index = 0; index < this.network.layers[hole_problem_level - 1].length; index++) {
-                    const node = this.network.layers[hole_problem_level - 1][index];
-                    if (!node.virtual && !node.dead_end) {
-                        rel_ind = index;
-                        break;
-                    }
-                }
-                this.resolve_overlaps_last_layer(this.network.layers[hole_problem_level - 1][rel_ind]);
-            }
-        }
-        this.remove_virtuals();
-    }
-    render() {
-        // maze consists of walls, rings
-        // currently, walls belong to rings
-        for (var i=0; i<this.rings.length; i++) {
-            this.rings[i].render();
-        }
     }
 }
 
@@ -1464,19 +934,12 @@ class Ring {
 }
 
 // instantiate objects
-add_values();
-var player = new Player();
-var network = new MazeNetworkRandom();
-var maze = new MazeRandom(network);
+reset(min_rings);
 
 // overall update function
 function update() {
     // run changes (update objects)
     player.update();
-    // for (let index = 0; index < rings.length; index++) {
-    //     rings[index].update();
-    // }
-
     // draw all changes
     draw();
     // get animation going
@@ -1487,10 +950,6 @@ function update() {
 function draw() {
     // refresh
     set_canvas_bg("lightblue");
-    // draw network (currently debug)
-    if (debug_draw_toggle) {
-        network.render();
-    }
     // draw maze
     maze.render();
     // draw player
@@ -1508,22 +967,9 @@ function keydown(e) {
     // down
     if (e.keyCode == 40) { player.downmove = true; }
 
-    // enter --> debug rotate walls
-    if (e.keyCode == 13) {
-        maze.update();
-    }
-
     // S, W --> debug increase/decrease player size
     if (e.keyCode == 87) { player.radius += 20*size_grow; }
     if (e.keyCode == 83 && player.radius > 1 + size_grow) { player.radius -= 20*size_grow; }
-    // Q, E --> make circular movements
-    if (e.keyCode == 81) { player.CCWmove = true; }
-    if (e.keyCode == 69) { player.CWmove = true; }
-    // A, D --> debug erase walls
-    if (e.keyCode == 65) { maze.debug_dig(-1); }
-    if (e.keyCode == 68) { maze.debug_dig(1); }
-    // B --> toggle debug
-    if (e.keyCode == 66) { debug_draw_toggle = !debug_draw_toggle; }
 
 }
 function keyup(e) {
@@ -1535,25 +981,6 @@ function keyup(e) {
     if (e.keyCode == 39) { player.rightmove = false; }
     // down
     if (e.keyCode == 40) { player.downmove = false; }
-
-    // enter
-    if (e.keyCode == 13) { 
-        for (let index = 0; index < rings.length; index++) {
-            for (let index2 = 0; index2 < rings[index].walls.length; index2++) {
-                rings[index].walls[index2].moving = false;
-            }
-        }
-    }
-
-    // Q, E --> make circular movements
-    if (e.keyCode == 81) { player.CCWmove = false; }
-    if (e.keyCode == 69) { player.CWmove = false; }
-}
-function mouseclick(e) {
-    // debug: select cell
-    var pos = getXY(e);
-    player.pos.x = pos.x;
-    player.pos.y = pos.y;
 }
 
 // start game loop

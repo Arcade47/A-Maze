@@ -7,6 +7,8 @@ player control via arrow keys
 */
 
 // init global vars
+var min_rings = 5;
+var max_rings = 12;
 var n_rings;
 var ring_spacing;
 var ring_thickness;
@@ -24,25 +26,23 @@ var rings = [];
 var walls = [];
 var start_rot;
 var hole_problem_level = 1; // layer at which overlap problems need to be resolved
-
-// debug flags
-var no_virt_holes = false;
-var debug_draw_toggle = false;
+var player;
+var network;
+var maze;
 
 // add event listenersggg
 document.addEventListener("keydown", keydown);
 document.addEventListener("keyup", keyup);
-document.addEventListener("click", mouseclick);
 
 // prepare values for vars
-function add_values() {
+function reset(nrings) {
     // global vars that are initialized before
-    n_rings = 8;            // rings of maze
+    n_rings = nrings;            // rings of maze
     ring_spacing = 30;      // spacing of maze rings in px
     ring_thickness = 5;    // diameter of maze walls in px
-    n_meds = 5;             // how many items need to be collected before allowed to exit
-    size_grow = 0.005;          // increase of player diameter over a frame
-    player_size = 3;        // initial player diameter in px
+    n_meds = 1;//Math.floor(n_rings/2);             // how many items need to be collected before allowed to exit
+    size_grow = 0.0075;          // increase of player diameter over a frame
+    player_size = 1.5;        // initial player diameter in px
     player_speed = 2;       // movement speed
     collision_steps = 30;   // determines how many times per draw the collision resolution function is called
     max_holes = 6;          // number of holes for middle rings
@@ -53,6 +53,11 @@ function add_values() {
     // derived vars
     // TODO: max distance   // formula that takes into account player_speed, size_grow and ring_spacing
     // max_distance = ;
+    
+    // init classes
+    player = new Player();
+    network = new MazeNetworkRandom();
+    maze = new MazeRandom(network);
 }
 
 // classes
@@ -463,18 +468,6 @@ class Player {
             this.set_relevant_coll_balls_wall(player_dist_center);
         }
     }
-    circular_move(CCW) {
-        // get radians
-        var pos_in_rad = coord_to_rad(this.pos);
-        // get distance
-        var dist = distance(this.pos, center_coord);
-        // add radians
-        var new_rad = pos_in_rad;
-        if (CCW) { new_rad -= 0.05; } // TODO standardize on ring diameter
-        if (!CCW) { new_rad += 0.05; }
-        // convert back to coord
-        this.pos = get_exact_coord(new_rad, dist, false);
-    }
     resolve_collisions() {
 
         // run in simulation steps: partition the velocity
@@ -514,7 +507,36 @@ class Player {
                 }
             }
         }
-        // TODO: cycle through all collision balls: if remaining overlap - death
+    }
+    win() {
+        // player distance to center large enough?
+        if (this.current_ring_ind > n_rings) {
+            if (n_rings < max_rings) {
+                var new_n_rings = n_rings + 1;
+            } else {
+                var new_n_rings = max_rings;
+            }
+            reset(new_n_rings);
+        }
+    }
+    lose() {
+        // cycle through all collision balls again: if remaining overlap - death
+        this.set_relevant_coll_balls();
+        for (let index = 0; index < this.collision_balls.length; index++) {
+            const cball = this.collision_balls[index];
+            if (distance(this.pos, cball) < (this.radius + ring_thickness/2)) {
+                var overlap = (this.radius + ring_thickness/2) - distance(this.pos, cball);
+                if (overlap > 0.1) {
+                    if (n_rings == min_rings) {
+                        // TODO: game over
+                        reset(n_rings);
+                    } else {
+                        reset(n_rings - 1);
+                    }
+                    break;
+                }
+            }
+        }
     }
     update() {
         // copy old pos (before changes) for velocity derivation
@@ -545,7 +567,11 @@ class Player {
         this.set_relevant_coll_balls();
 
         // increase in size
-        // this.radius += size_grow;
+        this.radius += size_grow;
+
+        // check if maze solved or player crushed
+        this.win();
+        this.lose();
     }
     render() {
 
@@ -1464,19 +1490,12 @@ class Ring {
 }
 
 // instantiate objects
-add_values();
-var player = new Player();
-var network = new MazeNetworkRandom();
-var maze = new MazeRandom(network);
+reset(min_rings);
 
 // overall update function
 function update() {
     // run changes (update objects)
     player.update();
-    // for (let index = 0; index < rings.length; index++) {
-    //     rings[index].update();
-    // }
-
     // draw all changes
     draw();
     // get animation going
@@ -1487,10 +1506,6 @@ function update() {
 function draw() {
     // refresh
     set_canvas_bg("lightblue");
-    // draw network (currently debug)
-    if (debug_draw_toggle) {
-        network.render();
-    }
     // draw maze
     maze.render();
     // draw player
@@ -1508,22 +1523,9 @@ function keydown(e) {
     // down
     if (e.keyCode == 40) { player.downmove = true; }
 
-    // enter --> debug rotate walls
-    if (e.keyCode == 13) {
-        maze.update();
-    }
-
     // S, W --> debug increase/decrease player size
     if (e.keyCode == 87) { player.radius += 20*size_grow; }
     if (e.keyCode == 83 && player.radius > 1 + size_grow) { player.radius -= 20*size_grow; }
-    // Q, E --> make circular movements
-    if (e.keyCode == 81) { player.CCWmove = true; }
-    if (e.keyCode == 69) { player.CWmove = true; }
-    // A, D --> debug erase walls
-    if (e.keyCode == 65) { maze.debug_dig(-1); }
-    if (e.keyCode == 68) { maze.debug_dig(1); }
-    // B --> toggle debug
-    if (e.keyCode == 66) { debug_draw_toggle = !debug_draw_toggle; }
 
 }
 function keyup(e) {
@@ -1535,25 +1537,6 @@ function keyup(e) {
     if (e.keyCode == 39) { player.rightmove = false; }
     // down
     if (e.keyCode == 40) { player.downmove = false; }
-
-    // enter
-    if (e.keyCode == 13) { 
-        for (let index = 0; index < rings.length; index++) {
-            for (let index2 = 0; index2 < rings[index].walls.length; index2++) {
-                rings[index].walls[index2].moving = false;
-            }
-        }
-    }
-
-    // Q, E --> make circular movements
-    if (e.keyCode == 81) { player.CCWmove = false; }
-    if (e.keyCode == 69) { player.CWmove = false; }
-}
-function mouseclick(e) {
-    // debug: select cell
-    var pos = getXY(e);
-    player.pos.x = pos.x;
-    player.pos.y = pos.y;
 }
 
 // start game loop
