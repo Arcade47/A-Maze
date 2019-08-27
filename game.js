@@ -797,7 +797,7 @@ function update() {
 
 function render() {
     // refresh
-    refresh_canvas("lightblue");
+    refresh_canvas("white");
     // draw objects
     maze.render();
     player.render();
@@ -849,7 +849,7 @@ function device_rotation(e) {
     gamma    = Math.round(e.gamma);
 
     player.project_3Dtilt_to_2Dplane(alpha, beta, gamma);
-    
+
     // debugball_alpha.update(alpha);
     // debugball_beta.update(beta);
     // debugball_gamma.update(gamma);
