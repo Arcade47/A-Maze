@@ -352,7 +352,8 @@ class Ring {
         var stepsize = (2*Math.PI)/n_holes_max;
         var center_rad = wrap_around(first_center_rad + (ind_in_ring*stepsize));
 
-        var rad_distance = rad_dist(this.radius, ring_spacing);
+        // width of hole: add thickness because edge balls limit space afterwards (2*0.5*thickness)
+        var rad_distance = rad_dist(this.radius, ring_spacing + ring_thickness);
         var h_start_val = center_rad - (0.5*rad_distance)
         var h_end_val = center_rad + (0.5*rad_distance)
         var hole_rads = {hstart: h_start_val, hend: h_end_val};
@@ -384,10 +385,16 @@ class Ring {
         this.walls[wall_ind].dug = true;
     }
     render() {
-        // circle segments
+        // circle segments & edge points
         for (let index = 0; index < this.segments.length; index++) {
+            // segment
             const segment = this.segments[index];
             draw_circle_segment(center_coord, this.radius, segment, this.thickness);
+            // edges
+            var pos_start = rad_to_coord(segment.start, this.radius);
+            var pos_end = rad_to_coord(segment.end, this.radius);
+            draw_circle_filled(pos_start, ring_thickness/2, "black");
+            draw_circle_filled(pos_end, ring_thickness/2, "black");
         }
         // walls
         for (let index = 0; index < this.walls.length; index++) {
