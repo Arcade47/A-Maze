@@ -8,10 +8,6 @@ var growth_speed;
 var player;
 var maze;
 var whole_len = Math.min(canvas.width, canvas.height);
-var alpha;   
-var beta;    
-var gamma;
-var debugball;
 
 function new_level(set_n_rings) {
     n_rings = set_n_rings;
@@ -21,23 +17,9 @@ function new_level(set_n_rings) {
     player_speed = 0.075*ring_spacing;
     n_simulation_steps = 30;
     growth_speed = 0.00025*ring_spacing;
-
-    /*
-    player_start_size = 5;
-    player_speed = 4;
-    ring_thickness = 5;
-    ring_spacing = 40;
-    n_rings = set_n_rings;
-    n_simulation_steps = 30;
-    growth_speed = 0.01;
-    */
-
     player = new Player();
     maze = new Maze();
     maze.dig();
-    debugball_alpha = new DebugBall("purple");
-    debugball_beta = new DebugBall("red");
-    debugball_gamma = new DebugBall("black");
 }
 
 document.addEventListener('keyup', keyup);
@@ -70,9 +52,6 @@ class Player extends Ball {
         this.tilt_movement = false;
         this.tilt_move_x = 0;
         this.tilt_move_y = 0;
-        this.alpha = 0;
-        this.beta = 0;
-        this.gamma = 0;
     }
     set_contact_points_walls(ring_ind, dist, outside) {
         if (ring_ind > 0 && !outside) {
@@ -272,12 +251,6 @@ class Player extends Ball {
         }
 
     }
-    render() {
-        super.render();
-        debug_draw_text(this.alpha, 100);
-        debug_draw_text(this.beta, 150);
-        debug_draw_text(this.gamma, 200);
-    }
 }
 
 class Item extends Ball {
@@ -324,17 +297,6 @@ class Item extends Ball {
             this.collision();
         }
 
-    }
-}
-
-class DebugBall extends Ball {
-    constructor(color) {
-        super();
-        this.pos = rad_to_coord(0, 100);
-        this.color = color;
-    }
-    update(val) {
-        this.pos = rad_to_coord(degrees_to_rad(val), 100);
     }
 }
 
@@ -813,7 +775,7 @@ function update() {
 
 function render() {
     // refresh
-    refresh_canvas("white");
+    refresh_canvas("lightblue");
     // draw objects
     maze.render();
     player.render();
@@ -852,18 +814,14 @@ function keyup(e) {
 }
 
 function device_rotation(e) {
-    alpha    = Math.round(e.alpha);
-    beta     = Math.round(e.beta);
-    gamma    = Math.round(e.gamma);
+    var alpha    = Math.round(e.alpha);
+    var beta     = Math.round(e.beta);
+    var gamma    = Math.round(e.gamma);
 
     player.alpha = alpha;
     player.beta = beta;
     player.gamma = gamma;
     player.project_3Dtilt_to_2Dplane(alpha, beta, gamma);
-
-    // debugball_alpha.update(alpha);
-    // debugball_beta.update(beta);
-    // debugball_gamma.update(gamma);
 }
 
 // start the updating loop

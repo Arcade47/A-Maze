@@ -9,14 +9,8 @@ circpos: {start: ..., end: ...}
 */
 
 // resize for mobile devices
-
 canvas.width  = window.innerWidth;
 canvas.height = window.innerHeight;
-
-function debug_draw_text(str, height) {
-    ctx.font = "30px Arial";
-    ctx.fillText(str, 10, height);
-}
 
 function refresh_canvas(color) {
     ctx.beginPath();
