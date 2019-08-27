@@ -781,7 +781,9 @@ function render() {
     debug_draw_text(alpha, 100);
     debug_draw_text(beta, 150);
     debug_draw_text(gamma, 200);
-    debugball.render();
+    debugball_alpha.render();
+    debugball_beta.render();
+    debugball_gamma.render();
 }
 
 function keydown(e) {
