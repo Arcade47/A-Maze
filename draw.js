@@ -1,4 +1,4 @@
-// TEST
+
 
 
 var canvas = document.getElementById("GameCanvas");
