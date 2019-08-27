@@ -819,6 +819,7 @@ function device_rotation(e) {
     alpha    = Math.round(e.alpha);
     beta     = Math.round(e.beta);
     gamma    = Math.round(e.gamma);
+    debugball.update(alpha, beta, gamma);
 }
 
 // start the updating loop
