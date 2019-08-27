@@ -36,7 +36,9 @@ function new_level(set_n_rings) {
     player = new Player();
     maze = new Maze();
     maze.dig();
-    debugball = new DebugBall();
+    debugball_alpha = new DebugBall("purple");
+    debugball_beta = new DebugBall("red");
+    debugball_gamma = new DebugBall("black");
 }
 
 document.addEventListener('keyup', keyup);
@@ -287,13 +289,13 @@ class Item extends Ball {
 }
 
 class DebugBall extends Ball {
-    constructor() {
+    constructor(color) {
         super();
         this.pos = rad_to_coord(0, 100);
-        this.color = "black";
+        this.color = color;
     }
-    update(a, b, g) {
-        this.pos = rad_to_coord(degrees_to_rad(g), 100);
+    update(val) {
+        this.pos = rad_to_coord(degrees_to_rad(val), 100);
     }
 }
 
@@ -819,7 +821,9 @@ function device_rotation(e) {
     alpha    = Math.round(e.alpha);
     beta     = Math.round(e.beta);
     gamma    = Math.round(e.gamma);
-    debugball.update(alpha, beta, gamma);
+    debugball_alpha.update(alpha);
+    debugball_beta.update(beta);
+    debugball_gamma.update(gamma);
 }
 
 // start the updating loop

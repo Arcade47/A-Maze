@@ -8,7 +8,6 @@ testcoord.x = 12
 circpos: {start: ..., end: ...}
 */
 
-// test
 // resize for mobile devices
 
 canvas.width  = window.innerWidth;
