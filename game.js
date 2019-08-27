@@ -11,7 +11,8 @@ var whole_len = Math.min(canvas.width, canvas.height);
 var absolute;
 var alpha;   
 var beta;    
-var gamma;   
+var gamma;
+var in_func = false;   
 
 function new_level(set_n_rings) {
     n_rings = set_n_rings;
@@ -764,6 +765,9 @@ function render() {
     maze.render();
     player.render();
     debug_draw_text(alpha);
+    if (in_func) {
+        debug_draw_text("HERE!!!");
+    }
 }
 
 function keydown(e) {
@@ -803,6 +807,7 @@ function device_rotation(e) {
     alpha    = e.alpha;
     beta     = e.beta;
     gamma    = e.gamma;
+    in_func = true;
 }
 
 // start the updating loop
