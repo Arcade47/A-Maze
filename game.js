@@ -39,7 +39,7 @@ function new_level(set_n_rings) {
 
 document.addEventListener('keyup', keyup);
 document.addEventListener('keydown', keydown);
-document.addEventListener("deviceorientation", device_rotation, true);
+window.addEventListener("deviceorientation", device_rotation, true);
 
 class Ball {
     constructor(pos={x: center_coord.x, y: center_coord.y}, radius=ring_thickness/2) {
@@ -799,7 +799,6 @@ function keyup(e) {
 }
 
 function device_rotation(e) {
-    debug_draw_text("here");
     absolute = e.absolute;
     alpha    = e.alpha;
     beta     = e.beta;
