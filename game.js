@@ -799,6 +799,7 @@ function keyup(e) {
 }
 
 function device_rotation(e) {
+    debug_draw_text("here");
     absolute = e.absolute;
     alpha    = e.alpha;
     beta     = e.beta;
