@@ -763,7 +763,9 @@ function render() {
     // draw objects
     maze.render();
     player.render();
-    debug_draw_text(alpha);
+    debug_draw_text(alpha, 100);
+    debug_draw_text(beta, 150);
+    debug_draw_text(gamma, 200);
 }
 
 function keydown(e) {
