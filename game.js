@@ -216,14 +216,20 @@ class Player extends Ball {
 
         this.tilt_movement = true;
 
-        this.beta = this.tilt_move_y;
-
         // up/down
         var tilt_y_speed = (player_speed/45)*beta - player_speed;
         if (tilt_y_speed >= -player_speed && tilt_y_speed <= player_speed) {
             this.tilt_move_y = tilt_y_speed;
         } else {
             this.tilt_move_y = 0;
+        }
+
+        // left/right
+        var tilt_x_speed = (player_speed/45)*gamma;
+        if (tilt_x_speed >= -player_speed && tilt_x_speed <= player_speed) {
+            this.tilt_move_x = tilt_x_speed;
+        } else {
+            this.tilt_move_x = 0;
         }
 
     }
@@ -807,7 +813,7 @@ function update() {
 
 function render() {
     // refresh
-    refresh_canvas("lightblue");
+    refresh_canvas("white");
     // draw objects
     maze.render();
     player.render();
