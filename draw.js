@@ -8,6 +8,17 @@ testcoord.x = 12
 circpos: {start: ..., end: ...}
 */
 
+// resize for mobile devices
+
+// var container = document.getElementById('container'),
+    
+if (window.navigator.userAgent.match(/(iPhone|iPod|iPad|Android|BlackBerry)/i)) {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    // container.style.height = h+"px";
+    // container.style.width = w+"px";
+}
+
 function refresh_canvas(color) {
     ctx.beginPath();
     ctx.fillStyle = color;
