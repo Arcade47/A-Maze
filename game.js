@@ -221,7 +221,7 @@ class Player extends Ball {
         this.beta = this.tilt_move_y;
 
         // up/down
-        var tilt_y_speed = player_speed/45 - player_speed;
+        var tilt_y_speed = (player_speed/45)*beta - player_speed;
         if (tilt_y_speed >= -player_speed && tilt_y_speed <= player_speed) {
             this.tilt_move_y = tilt_y_speed;
         } else {
