@@ -801,10 +801,10 @@ function keyup(e) {
 }
 
 function device_rotation(e) {
-    absolute = e.absolute;
-    alpha    = e.alpha;
-    beta     = e.beta;
-    gamma    = e.gamma;
+    absolute = Math.round(e.absolute);
+    alpha    = Math.round(e.alpha);
+    beta     = Math.round(e.beta);
+    gamma    = Math.round(e.gamma);
 }
 
 // start the updating loop
