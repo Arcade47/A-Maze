@@ -269,7 +269,7 @@ class Player extends Ball {
 
     }
     render() {
-        super().render();
+        super.render();
         debug_draw_text(this.alpha, 100);
         debug_draw_text(this.beta, 150);
         debug_draw_text(this.gamma, 200);
