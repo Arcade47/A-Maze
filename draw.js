@@ -10,14 +10,8 @@ circpos: {start: ..., end: ...}
 
 // resize for mobile devices
 
-// var container = document.getElementById('container'),
-    
-if (window.navigator.userAgent.match(/(iPhone|iPod|iPad|Android|BlackBerry)/i)) {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-    // container.style.height = h+"px";
-    // container.style.width = w+"px";
-}
+canvas.width  = window.innerWidth;
+canvas.height = window.innerHeight;
 
 function refresh_canvas(color) {
     ctx.beginPath();

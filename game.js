@@ -7,8 +7,18 @@ var n_simulation_steps;
 var growth_speed;
 var player;
 var maze;
+var whole_len = Math.min(canvas.width, canvas.height);
 
 function new_level(set_n_rings) {
+    n_rings = set_n_rings;
+    ring_spacing = whole_len/(n_rings*2.5);
+    player_start_size = 0.125*ring_spacing;
+    ring_thickness = 0.125*ring_spacing;
+    player_speed = 0.075*ring_spacing;
+    n_simulation_steps = 30;
+    growth_speed = 0.00025*ring_spacing;
+
+    /*
     player_start_size = 5;
     player_speed = 4;
     ring_thickness = 5;
@@ -16,6 +26,8 @@ function new_level(set_n_rings) {
     n_rings = set_n_rings;
     n_simulation_steps = 30;
     growth_speed = 0.01;
+    */
+
     player = new Player();
     maze = new Maze();
     maze.dig();
@@ -165,8 +177,7 @@ class Player extends Ball {
         var ring_ind = Math.floor(center_dist/ring_spacing);
         
         if (ring_ind > maze.n_rings) {
-            console.log("win!")
-            var new_n_rings = Math.min(10, maze.n_rings + 1);
+            var new_n_rings = Math.min(21, maze.n_rings + 1);
             new_level(new_n_rings);
         }
     }
@@ -181,8 +192,6 @@ class Player extends Ball {
                 var len = distance(this.pos, cp.pos);
                 var ball_overlap = (this.radius + cp.radius) - len;
                 if (ball_overlap > 0.2) {
-                    console.log(ball_overlap)
-                    console.log("lose!")
                     var new_n_rings = Math.max(3, maze.n_rings - 1);
                     new_level(new_n_rings);
                 }
@@ -731,7 +740,7 @@ class Cell {
     }
 }
 
-new_level(7);
+new_level(3);
 
 function update() {
     // updating objects
