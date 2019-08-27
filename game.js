@@ -1,1092 +1,787 @@
-// game principle
-/*
-circular maze, a central circle (player) needs to get out in time
-problem: circle grows - when too large, player dies (crushed between maze walls)
-circle size can be resetted when collecting items ("meds")
-player control via arrow keys
----
-conceptual TODO:
-- how can mazes be generated automatically?
-*/
-
-// functions
-
-function random_wall_rads(n_walls) {
-    // returns position along ring in radians for n walls (equally spaced)
-    var wall_rads = [];
-    var step = (2*Math.PI)/n_walls;
-    var start_rad = Math.random()*(2*Math.PI);
-    for (let index = 0; index < n_walls; index++) {
-        wall_rads.push(start_rad);
-        start_rad += step;
-        start_rad = start_rad%(2*Math.PI);
-    }
-    return wall_rads;
-}
-
-function overlap_hole_region(wall_rad, coords, return_coords = false, flip = true, flipc = false) {
-
-    // flip wall rad again TODO find out why
-    if (flip) {
-        wall_rad = flip_rad(wall_rad);
-    }
-    if (flipc) {
-        coords = flip_coords(coords);
-    }
-
-    // stores bool and coords
-    var overlaps_hole = false;
-    var hole_coords = {start: 0, end: 0};
-
-    for (let j = 0; j < coords.length-1; j++) {
-        var hole_start = coords[j].end;
-        var hole_end = coords[j+1].start;
-        // consider case that hole is around radians 0
-        if (hole_end < hole_start) {
-            // test instead if in non-hole area, then reverse return bool
-            if (wall_rad >= hole_end && wall_rad <= hole_start) {
-                // return false;
-            } else {
-                overlaps_hole = true;
-                hole_coords = {start: hole_start, end: hole_end};
-                break;
-            }
-        }
-        if (wall_rad >= hole_start && wall_rad <= hole_end) {
-            overlaps_hole = true;
-            hole_coords = {start: hole_start, end: hole_end};
-            break;
-        }
-    }
-    // test last hole (if not already a break reached)
-    if (coords.length > 0 && !overlaps_hole) {
-        var hole_start = coords[coords.length-1].end;
-        var hole_end = coords[0].start;
-        // consider case that hole is around radians 0
-        if (hole_end < hole_start) {
-            // test instead if in non-hole area, then reverse return bool
-            if (wall_rad >= hole_end && wall_rad <= hole_start) {
-                // return false;
-            } else {
-                overlaps_hole = true;
-                hole_coords = {start: hole_start, end: hole_end};
-            }
-        }
-        if (wall_rad >= hole_start && wall_rad <= hole_end) {
-            overlaps_hole = true;
-            hole_coords = {start: hole_start, end: hole_end};
-        }
-    }
-
-    // returns
-    if (return_coords) {
-        return [overlaps_hole, hole_coords];
-    } else {
-        return overlaps_hole;
-    }
-}
-
-function overlap_holecoords(wall_rad, hcoords, return_coords = false, flipa = [true, false]) {
-
-    // coordinates are not for start-end of walls but start-end of holes already
-
-    // flip wall rad again TODO find out why
-    if (flipa[0]) {
-        wall_rad = flip_rad(wall_rad);
-    }
-    if (flipa[1]) {
-        hcoords = flip_coords(hcoords);
-    }
-
-    // stores bool and coords
-    var overlaps_hole = false;
-
-    var hole_coords = {start: 0, end: 0};
-
-    for (let j = 0; j < hcoords.length; j++) {
-        // consider case that hole is around radians 0
-        if (hcoords.end < hcoords.start) {
-            // test instead if in non-hole area, then reverse return bool
-            if (wall_rad >= hcoords.end && wall_rad <= hcoords.start) {
-                // return false;
-            } else {
-                overlaps_hole = true;
-                hole_coords = hcoords[j];
-                break;
-            }
-        }
-        if (wall_rad >= hcoords.start && wall_rad <= hcoords.end) {
-            overlaps_hole = true;
-            hole_coords = hcoords[j];
-            break;
-        }
-    }
-
-
-    // // test last hole (if not already a break reached)
-    // if (coords.length > 0 && !overlaps_hole) {
-    //     var hole_start = coords[coords.length-1].end;
-    //     var hole_end = coords[0].start;
-    //     // consider case that hole is around radians 0
-    //     if (hole_end < hole_start) {
-    //         // test instead if in non-hole area, then reverse return bool
-    //         if (wall_rad >= hole_end && wall_rad <= hole_start) {
-    //             // return false;
-    //         } else {
-    //             overlaps_hole = true;
-    //             hole_coords = {start: hole_start, end: hole_end};
-    //         }
-    //     }
-    //     if (wall_rad >= hole_start && wall_rad <= hole_end) {
-    //         overlaps_hole = true;
-    //         hole_coords = {start: hole_start, end: hole_end};
-    //     }
-    // }
-
-    // returns
-    if (return_coords) {
-        return [overlaps_hole, hole_coords];
-    } else {
-        return overlaps_hole;
-    }
-}
-
-function overlap_two_holes(hole_coords1, hole_coords2, flipa=[true, false]) {
-    // call the basic function four times, if any overlap --> return
-    // always returns
-
-    // /*
-
-    // INNER as thresholds
-    // variant 1
-    var wall_rad = hole_coords1.start;
-    var coords = [hole_coords2];
-    var variant = overlap_holecoords(wall_rad, coords, return_coords = true, flipa);
-    if (variant[0]) { return variant; }
-    // variant 2
-    var wall_rad = hole_coords1.end;
-    var coords = [hole_coords2];
-    var variant = overlap_holecoords(wall_rad, coords, return_coords = true, flipa);
-    if (variant[0]) { return variant; }
-
-    // */
-
-    // /*
-
-    // OUTER as thresholds
-    // variant 1
-    var wall_rad = hole_coords2.start;
-    var coords = [hole_coords1];
-    var variant = overlap_holecoords(wall_rad, coords, return_coords = true, flipa);
-    if (variant[0]) { return variant; }
-    // variant 2
-    var wall_rad = hole_coords2.end;
-    var coords = [hole_coords1];
-    var variant = overlap_holecoords(wall_rad, coords, return_coords = true, flipa);
-    if (variant[0]) { return variant; }
-
-    // */
-
-    // no problem until now
-    return [false, {start: 0, end: 0}];
-}
-
-function walls_in_holes(coords1, coords2, wall_rads) {
-    for (let i = 0; i < wall_rads.length; i++) {
-        const wall_rad = wall_rads[i];
-        // if any overlap with hole of either inner or outer ring --> function returns true
-        if (overlap_hole_region(wall_rad, coords1)) { return true; }
-        if (overlap_hole_region(wall_rad, coords2)) { return true; }
-    }
-    // no overlap
-    return false;
-}
-
-function get_wall_validity(coords1, coords2, wall_rads) {
-    var wall_list = [];
-    for (let i = 0; i < wall_rads.length; i++) {
-        const wall_rad = wall_rads[i];
-        if (overlap_hole_region(wall_rad, coords1)) { 
-            wall_list.push(false);
-        }
-        else if (overlap_hole_region(wall_rad, coords2)) {
-            wall_list.push(false);
-        }
-        else {
-            wall_list.push(true);
-        }
-    }
-    return wall_list;
-}
-
-function circumference_coords(n_segs, r, ring_space, thickness, rot) {
-    // get distance of start and end pos based on radius and ring_space
-    // 1. calculate circumference
-    var c = 2*Math.PI*r;
-    // 2. standardize the ring_space
-    var standard_ring_space = (ring_space + thickness)/c; // leave room for circular edges          thickness
-    // 3. add correct measure for canvas arc method (2*pi)
-    var end_start_dist = standard_ring_space*2*Math.PI;
-
-    // get coordinates based on number of segments
-    var step = 2*Math.PI/n_segs - end_start_dist; // - (n_segs*end_start_dist);
-    // apply rotation (in percent of max)
-    var rot_add = rot*2*Math.PI;
-    var current_start = (end_start_dist/2 + rot_add)%(2*Math.PI); // so that first hole is centered
-    var current_end = (current_start + step)%(2*Math.PI);
-    var output_edges = [];          // for drawing the circular segments
-    var output_ball_coords = [];    // for drawing the circular edges of the segments
-    for (let index = 0; index < n_segs; index++) {
-        // append to segment list
-        output_edges.push({start: current_start, end: current_end});
-        // append to edge coord list
-        output_ball_coords.push(get_exact_coord(current_start, r, false));
-        output_ball_coords.push(get_exact_coord(current_end, r, false));
-        // step coords forward
-        current_start = (current_end + end_start_dist)%(2*Math.PI);
-        current_end = (current_start + step)%(2*Math.PI);
-    }
-    return [output_edges, output_ball_coords];
-}
-
-function circumference_coords_simpler(n_segs, rot, random=0) {
-    // apply rotation (in percent of max)
-    var rot_add = rot*2*Math.PI;
-    var current_start = rot_add; // so that first hole is centered
-    var output_edges = [];          // for drawing the circular segments
-    for (let index = 0; index < n_segs; index++) {
-        // append to segment list
-        output_edges.push(current_start);
-        current_start = (current_start + (2*Math.PI)/n_segs + random)%(2*Math.PI);
-    }
-    return output_edges;
-}
-
-function circumference_coords_rand(n_segs) {
-    // apply rotation (in percent of max)
-    var rot_add = rot*2*Math.PI;
-    var current_start = rot_add; // so that first hole is centered
-    var output_edges = [];          // for drawing the circular segments
-    for (let index = 0; index < n_segs; index++) {
-        // var rand_step = Math.random()*(rand_max - rand_min) + rand_min;
-        // append to segment list
-        output_edges.push(current_start);
-        current_start = (current_start + (2*Math.PI))%(2*Math.PI);
-    }
-    return output_edges;
-}
-
-function circumference_coords_given_coords(coords, r, ring_space, thickness) {
-    // get distance of start and end pos based on radius and ring_space
-    // 1. calculate circumference
-    var c = 2*Math.PI*r;
-    // 2. standardize the ring_space
-    var standard_ring_space = (ring_space + thickness)/c; // leave room for circular edges          thickness
-    // 3. add correct measure for canvas arc method (2*pi)
-    var end_start_dist = standard_ring_space*2*Math.PI;
-
-    // get coordinates based on number of segments
-    var step = 2*Math.PI/coords.length - end_start_dist; // - (n_segs*end_start_dist);
-    var output_edges = [];          // for drawing the circular segments
-    var output_ball_coords = [];    // for drawing the circular edges of the segments
-    for (let index = 0; index < coords.length; index++) {
-        var current_start = coords[index]; // so that first hole is centered
-        var current_end = (current_start + step)%(2*Math.PI);
-        // append to segment list
-        output_edges.push({start: current_start, end: current_end});
-        // append to edge coord list
-        output_ball_coords.push(get_exact_coord(current_start, r, false));
-        output_ball_coords.push(get_exact_coord(current_end, r, false));
-    }
-    return [output_edges, output_ball_coords];
-}
-
-// init global vars
-var n_rings;
-var ring_spacing;
-var ring_thickness;
-var n_meds;
-var size_grow;
-var player_size;
+var player_start_size;
 var player_speed;
-var collision_steps;
-var max_holes;
-var dead_end_frac;
-var max_distance;
-var med_min_distance;
-var med_max_distance;
-var rings = [];
-var walls = [];
+var ring_thickness;
+var ring_spacing;
+var n_rings;
+var n_simulation_steps;
+var growth_speed;
+var player;
+var maze;
 
-// debug flag
-var hole_problem_level = 1;
-var start_rot = 3;
-
-// add event listeners
-document.addEventListener("keydown", keydown);
-document.addEventListener("keyup", keyup);
-
-// prepare values for vars
-function add_values() {
-    // global vars that are initialized before
-    n_rings = 6;            // rings of maze
-    ring_spacing = 15;      // spacing of maze rings in px
-    ring_thickness = 4;    // diameter of maze walls in px
-    n_meds = 5;             // how many items need to be collected before allowed to exit
-    size_grow = 0.005;          // increase of player diameter over a frame
-    player_size = 1;        // initial player diameter in px
-    player_speed = 2;       // movement speed
-    collision_steps = 10;   // determines how many times per draw the collision resolution function is called
-    max_holes = 8;          // number of holes for middle rings
-    dead_end_frac = 0.2;       // percentage of nodes in typical layer that are dead ends
-    med_min_distance_fac = 0.2;  // factor of max distance that player is separated by med
-    med_max_distance_fac = 0.8;  // how far is last med from player?
-    // derived vars
-    // TODO: max distance   // formula that takes into account player_speed, size_grow and ring_spacing
-    // max_distance = ;
+function new_level(set_n_rings) {
+    player_start_size = 5;
+    player_speed = 4;
+    ring_thickness = 5;
+    ring_spacing = 40;
+    n_rings = set_n_rings;
+    n_simulation_steps = 30;
+    growth_speed = 0.01;
+    player = new Player();
+    maze = new Maze();
+    maze.dig();
 }
 
-// classes
+document.addEventListener('keyup', keyup);
+document.addEventListener('keydown', keydown);
 
-class Node {
-    // virtual unit representing the maze structure
-    constructor(ind, id) {
-        this.ind = ind;
-        this.id = id;
-        this.parent = [];
-        this.children = [];
-        this.dead_end = false;
-        this.virtual = false;
-        this.n_children = 0;
-        this.coord = 0;
+class Ball {
+    constructor(pos={x: center_coord.x, y: center_coord.y}, radius=ring_thickness/2) {
+        this.pos = pos;
+        this.radius = radius;
+        this.color = "red";
     }
-    set_parent(parent) {
-        this.parent = [parent];
-        // automatically sets children accordingly
-        // but first search if child already included
-        var child_included = false;
-        for (let index = 0; index < layers[parent.ind][parent.id].children.length; index++) {
-            var child = layers[parent.ind][parent.id].children[index];
-            if (child.ind == this.ind && child.id == this.id) {
-                child_included = true;
+    render() {
+        draw_circle_filled(this.pos, this.radius, this.color);
+    }
+}
+
+class Player extends Ball {
+    constructor() {
+        super();
+        this.color = "green";
+        this.radius = player_start_size;
+        this.moveleft = false;
+        this.moveright = false;
+        this.moveup = false;
+        this.movedown = false;
+        this.contact_points = [];
+        this.shrinking = false;
+        this.shrinking_percentage = 0;
+    }
+    set_contact_points_walls(ring_ind, dist, outside) {
+        if (ring_ind > 0 && !outside) {
+            for (let index = 0; index < maze.rings[ring_ind - 1].walls.length; index++) {
+                const wall = maze.rings[ring_ind - 1].walls[index];
+                if (!wall.dug) {
+                    // get coord from distance and radians
+                    var coord = rad_to_coord(wall.rad, dist);
+                    this.contact_points.push(new Ball(coord));
+                }
+            }
+        }
+    }
+    set_contact_points_rings(ring_ind) {
+        var dist = (ring_ind + 1)*ring_spacing;
+        // get radians from player pos
+        var rad = coord_to_rad(this.pos);
+        var coord = rad_to_coord(rad, dist);
+        var in_hole = true;
+        for (let index = 0; index < maze.rings[ring_ind].segments.length; index++) {
+            const segment = maze.rings[ring_ind].segments[index];
+            if (rad_between_rads(rad, [segment.start, segment.end])) {
+                in_hole = false;
                 break;
             }
         }
-        if (!child_included) {
-            layers[parent.ind][parent.id].children.push(this);
-            // important flag to store number of children
-            layers[parent.ind][parent.id].n_children = layers[parent.ind][parent.id].children.length;
+        if (!in_hole) {
+            this.contact_points.push(new Ball(coord));
         }
     }
-    get_id_of_leftmost_child() {
-        var min = Infinity;
-        for (let index = 0; index < this.children.length; index++) {
-            var child = this.children[index];
-            if (child.id < min) {
-                min = child.id;
-            }
+    set_contact_points_holes(ring_ind) {
+        var dist = (ring_ind + 1)*ring_spacing;
+        for (let index = 0; index < maze.rings[ring_ind].segments.length; index++) {
+            const segment = maze.rings[ring_ind].segments[index];
+            var start_coord = rad_to_coord(segment.start, dist);
+            var end_coord = rad_to_coord(segment.end, dist);
+            this.contact_points.push(new Ball(start_coord));
+            this.contact_points.push(new Ball(end_coord));
         }
-        return min;
     }
-    get_id_of_rightmost_child() {
-        var max = -Infinity;
-        for (let index = 0; index < this.children.length; index++) {
-            var child = this.children[index];
-            if (child.id > max) {
-                max = child.id;
-            }
-        }
-        return max;
-    }
-}
+    set_contact_points() {
 
-class Player {
-    constructor() {
-        // appearance
-        this.pos = {x: canvas.width/2, y: canvas.height/2};
-        this.speed = player_speed;
-        this.radius = player_size;
-        this.color = "green";
-        // states
-        this.leftmove = false;
-        this.rightmove = false;
-        this.upmove = false;
-        this.downmove = false;
-        // debug movements
-        this.CWmove = false;
-        this.CCWmove = false;
-        // for collision
-        this.vel = {x: 0, y: 0};
-        this.current_ring_ind = 0; // starts in middle
-        this.collision_balls = [];
-    }
-    set_current_ring_ind() {
-        // function of distance to center, pos and ring_spacing (ring_thickness?)
-        var dist = distance(this.pos, center_coord);
-        // set value of current ring ind
-        this.current_ring_ind = Math.floor(dist/ring_spacing);
-    }
-    set_coll_balls_along_ring(player_rad, ring_ind, dist) {
-        var hole_check = overlap_hole_region(player_rad, rings[ring_ind].holes_coords, true);
-            if (!hole_check[0]) { // exclude cases for inner ring if player is in innermost ring or holes
-                // convert dist, rad to coord
-                this.collision_balls.push(get_exact_coord(player_rad, dist, false));
-            } else {
-                // convert rads to coords
-                this.collision_balls.push(get_exact_coord(flip_rad(hole_check[1].start), dist, false));
-                this.collision_balls.push(get_exact_coord(flip_rad(hole_check[1].end), dist, false));
-            }
-    }
-    set_coll_balls_along_walls(player_dist_center) {
-        for (let index = 0; index < rings[this.current_ring_ind].walls.length; index++) {
-            const wall = rings[this.current_ring_ind].walls[index];
-            // convert to coords
-            this.collision_balls.push(get_exact_coord(wall.rad, player_dist_center, false));
-        }
-    }
-    set_closest_collision_balls() {
-        // for static collision detection
-        this.collision_balls = []; // refill array
-        // two balls always except ring_ind == 0
-        // get two distances from center (two rings)
-        var dists = [];
-        dists.push(this.current_ring_ind*ring_spacing - 0.5*ring_thickness);
-        dists.push((this.current_ring_ind + 1)*ring_spacing - 0.5*ring_thickness);
-        // also later needed: player distance from center
-        var player_dist_center = distance(this.pos, center_coord);
-        // get exact coords of collision_balls based on player angle
-        var player_rad = coord_to_rad(this.pos);
-        // start appending the virtual collision balls
-        for (let index = 0; index < dists.length; index++) {
-            if (this.current_ring_ind > 0 && this.current_ring_ind < n_rings) { // set bounds
-                // 1. set collision balls along ring
-                this.set_coll_balls_along_ring(player_rad, this.current_ring_ind + index - 1, dists[index]);
-                // 2. set collision balls along walls
-                this.set_coll_balls_along_walls(player_dist_center);
-            } else if (this.current_ring_ind == 0 && index > 0) { // do not check artifical center ring, therefore index > 0
-                // do not check walls
-                this.set_coll_balls_along_ring(player_rad, 0, dists[index]);
-            } else if (this.current_ring_ind >= n_rings) {
-                // here also: do not check walls
-                this.set_coll_balls_along_ring(player_rad, n_rings-1, (n_rings)*ring_spacing - 0.5*ring_thickness);
-            }
-        }
-    }
-    circular_move(CCW) {
-        // get radians
-        var pos_in_rad = coord_to_rad(this.pos);
-        // get distance
-        var dist = distance(this.pos, center_coord);
-        // add radians
-        var new_rad = pos_in_rad;
-        if (CCW) { new_rad -= 0.05; } // TODO standardize on ring diameter
-        if (!CCW) { new_rad += 0.05; }
-        // convert back to coord
-        this.pos = get_exact_coord(new_rad, dist, false);
-    }
-    resolve_collisions(old_pos) {
-        // first reset position to old pos
-        this.pos = {x: old_pos.x, y: old_pos.y};
-        // split the velocity according to number of computations
-        var vel_step = {x: this.vel.x/collision_steps, y: this.vel.y/collision_steps};
-        // run the collision check collision_steps times --> only as long as no obstacle is reached
-        var obstacle = false;
-        for (let i = 0; i < collision_steps; i++) {
-            if (!obstacle) {
-                // step forward the position
-                this.pos.x += vel_step.x;
-                this.pos.y += vel_step.y;
+        // reset
+        this.contact_points = [];
 
-                // circles thru the collision balls
-                for (let j = 0; j < this.collision_balls.length; j++) {
-                    const cball = this.collision_balls[j];
-                    // check if overlap --> collision needs to be resolved
-                    if (distance(this.pos, cball) < (this.radius + ring_thickness/2)) {
-                        // assuming player movement caused collision --> vel > 0
-                        var overlap = (this.radius + ring_thickness/2) - distance(this.pos, cball);
-                        // scale velocity vector with overlap and substract
-                        var unit_vec_vel = unit_vector(this.vel);
-                        var scaled_vel = {x: unit_vec_vel.x*overlap, y: unit_vec_vel.y*overlap};
-                        this.pos.x -= scaled_vel.x;
-                        this.pos.y -= scaled_vel.y;
-                        // stop the collision computation steps
-                        obstacle = true;
-                    }
+        // identify relevant ring
+        var center_dist = distance(this.pos, center_coord);
+        var ring_ind = Math.floor(center_dist/ring_spacing);
+        var outside = false;
+        if (ring_ind > maze.n_rings-1) {
+            ring_ind = maze.n_rings-1;
+            outside = true;
+        }
+        var ring_dist = (ring_ind + 1)*ring_spacing;
+
+        // walls
+        this.set_contact_points_walls(ring_ind, center_dist, outside);
+
+        // rings
+        this.set_contact_points_rings(ring_ind);
+        if (ring_ind > 0) {
+            this.set_contact_points_rings(ring_ind - 1);
+        }
+
+        // holes
+        this.set_contact_points_holes(ring_ind);
+        if (ring_ind > 0) {
+            this.set_contact_points_holes(ring_ind - 1);
+        }
+
+    }
+    collision_resolution() {
+        // velocity
+        this.vel = {x: this.pos.x - this.old_pos.x, y: this.pos.y - this.old_pos.y};
+        // simulation steps
+        var step_x = this.vel.x / n_simulation_steps;
+        var step_y = this.vel.y / n_simulation_steps;
+
+        for (let index = 0; index < n_simulation_steps; index++) {
+
+            // step position forward
+            this.pos.x += step_x;
+            this.pos.y += step_y;
+
+            // did collision occur?
+            this.set_contact_points();
+
+            for (let index = 0; index < this.contact_points.length; index++) {
+                const cp = this.contact_points[index];
+                if (overlap(this, cp)) {
+                    // correct for overlap
+                    var dist_vect = {x: cp.pos.x - this.pos.x, y: cp.pos.y - this.pos.y};
+                    var len = distance(this.pos, cp.pos);
+                    var unit_dist_vect = {x: dist_vect.x/len, y: dist_vect.y/len};
+                    var ball_overlap = (this.radius + cp.radius) - len;
+                    var corr_vect = {x: unit_dist_vect.x*ball_overlap, y: unit_dist_vect.y*ball_overlap};
+                    this.pos.x -= corr_vect.x;
+                    this.pos.y -= corr_vect.y;
+                }
+            }
+            
+        }
+    }
+    shrink() {
+        if (this.radius > player_start_size) {
+            this.radius -= 4*growth_speed;
+            var current_shrink_distance = this.radius - player_start_size;
+            this.shrinking_percentage = current_shrink_distance/this.shrink_distance;
+            if (this.radius <= player_start_size) {
+                this.shrinking = false;
+            }
+        }
+    }
+    check_if_win() {
+        var center_dist = distance(this.pos, center_coord);
+        var ring_ind = Math.floor(center_dist/ring_spacing);
+        
+        if (ring_ind > maze.n_rings) {
+            console.log("win!")
+            var new_n_rings = Math.min(10, maze.n_rings + 1);
+            new_level(new_n_rings);
+        }
+    }
+    check_if_lose() {
+        // are remaining collisions?
+        this.set_contact_points();
+
+        for (let index = 0; index < this.contact_points.length; index++) {
+            const cp = this.contact_points[index];
+            if (overlap(this, cp)) {
+                // get size of overlap
+                var len = distance(this.pos, cp.pos);
+                var ball_overlap = (this.radius + cp.radius) - len;
+                if (ball_overlap > 0.2) {
+                    console.log(ball_overlap)
+                    console.log("lose!")
+                    var new_n_rings = Math.max(3, maze.n_rings - 1);
+                    new_level(new_n_rings);
                 }
             }
         }
     }
     update() {
-        // copy old pos (before changes) for velocity derivation
-        var old_pos = {x: this.pos.x, y: this.pos.y};
+        // store old pos
+        this.old_pos = {x: this.pos.x, y: this.pos.y};
 
-        // apply movements
-        if (this.leftmove) { this.pos.x -= player_speed; }
-        if (this.rightmove) { this.pos.x += player_speed; }
-        if (this.upmove) { this.pos.y -= player_speed; }
-        if (this.downmove) { this.pos.y += player_speed; }
+        if (!this.shrinking) {
+            // increase player size
+            this.radius += growth_speed;
 
-        // debug: circular movements (keys Q, E)
-        if (this.CWmove) { this.circular_move(false); }
-        if (this.CCWmove) { this.circular_move(true); }
+            // react to keypresses
+            if (this.moveleft) {
+                this.pos.x -= player_speed;
+            }
+            if (this.moveright) {
+                this.pos.x += player_speed;
+            }
+            if (this.moveup) {
+                this.pos.y -= player_speed;
+            }
+            if (this.movedown) {
+                this.pos.y += player_speed;
+            }
+            // collisions
+            this.collision_resolution();
 
-        // derive vel
-        this.vel.x = this.pos.x - old_pos.x;
-        this.vel.y = this.pos.y - old_pos.y;
+            // check for win/lose
+            this.check_if_lose();
+            this.check_if_win();
+            
+        } else {
+            this.shrink();
+        }
+    }
+}
 
-        // collision resolution (in multiple steps)
-        this.resolve_collisions(old_pos);
-
-        // update current position in terms of ring indices
-        this.set_current_ring_ind();
-
-        // update virtual collision objects
-        this.set_closest_collision_balls();
-
-        // increase in size
-        // this.radius += size_grow;
+class Item extends Ball {
+    constructor(pos) {
+        super();
+        this.radius = 0.2*ring_spacing;
+        this.pos = pos;
+        this.opacity = 1;
+        this.set_color();
+        this.triggered = false;
+        this.active = true;
+    }
+    set_color() {
+        this.color = "rgba(0, 0, 255, " + String(this.opacity) + ")";
+    }
+    collision() {
+        if (overlap(player, this)) {
+            this.effect();
+        }
+    }
+    effect() {
+        // shrink player until start size
+        if (player.shrinking == false) {
+            player.shrink_start_abs = player.radius;
+            player.shrink_distance = player.shrink_start_abs - player_start_size;
+        }
+        player.shrinking = true;
+        this.triggered = true;
     }
     render() {
-        // debug: render the current ring ind
-        // draw_circ((this.current_ring_ind + 1)*ring_spacing, center_coord, "orange");
-        // draw_circ((this.current_ring_ind)*ring_spacing, center_coord, "lightblue");
-        // draw_debug_text(this.current_ring_ind);
-        draw_debug_text_line(this.vel.x, 1);
-        draw_debug_text_line(this.vel.y, 2);
-
-        // debug: render collision_balls
-        for (let index = 0; index < this.collision_balls.length; index++) {
-            const cball = this.collision_balls[index];
-            draw_circ(ring_thickness/2, cball, "white");
+        if (this.active) {
+            super.render();
         }
-
-        draw_circ(this.radius, this.pos, this.color);
+    }
+    update() {
+        if (!player.shrinking && this.triggered) {
+            this.active = false;
+        }
+        if (player.shrinking && this.triggered) {
+            this.opacity = player.shrinking_percentage;
+            this.set_color(this.opacity);
+        }
+        if (this.active) {
+            this.collision();
+        }
 
     }
 }
 
 class Wall {
-    constructor(ind1, ind2, rad, invalid=false, ring1, ring2) {
-        this.ind1 = ind1; // inner ring to which wall is connected
-        this.ind2 = ind2; // outer ring to which wall is connected
-        this.ring1 = ring1;
-        this.ring2 = ring2;
-        this.rad = rad; // angle in radians
-        // derived vars
-        this.r1 = ((ind1+1)*2*ring_spacing - ring_thickness)/2;
-        this.r2 = ((ind2+1)*2*ring_spacing - ring_thickness)/2;
-        this.coord1 = get_exact_coord(this.rad, this.r1, false);
-        this.coord2 = get_exact_coord(this.rad, this.r2, false);
-        this.invalid = invalid; // for debugging
-        this.moving = false;
+    constructor(ind, rad) {
+        // get 2 endpoints
+        this.coords = [];
+        this.rad = rad;
+        var coord1 = rad_to_coord(rad, this.get_center_distance(ind));
+        var coord2 = rad_to_coord(rad, this.get_center_distance(ind + 1));
+        this.coords.push(coord1);
+        this.coords.push(coord2);
+        this.dug = false;
     }
-    set_validity() {
-        // get them coords
-        var coords1 = this.ring1.holes_coords;
-        var coords2 = this.ring2.holes_coords;
-        // if any overlap with hole of either inner or outer ring --> function sets validity
-        this.invalid = false;
-        if (overlap_hole_region(this.rad, coords1)) { this.invalid = true; }
-        if (overlap_hole_region(this.rad, coords2)) { this.invalid = true; }
-    }
-    update_coords() {
-        this.coord1 = get_exact_coord(this.rad, this.r1, false);
-        this.coord2 = get_exact_coord(this.rad, this.r2, false);
-    }
-    update() {
-        this.set_validity();
-        // position updates (debugging)
-        if (this.moving) {
-            this.rad += 0.005
-            this.rad %= Math.PI*2; // make sure value stays within bounds
-            this.update_coords();
-        }
+    get_center_distance(ind) {
+        return (ind + 1)*ring_spacing;
     }
     render() {
-        var color = "black"
-        if (this.invalid) {
-            color = "red";
+        if (!this.dug) {
+            draw_line(this.coords, ring_thickness);
         }
-        draw_line([this.coord1, this.coord2], color, ring_thickness);
     }
 }
 
 class Ring {
     constructor(ind) {
-        // lower inds --> smaller rings
+        // TODO add walls
         this.ind = ind;
-        this.diameter = (ind+1)*2*ring_spacing - ring_thickness;
-        this.holes_coords = [];
-        this.edge_ball_coords = [];
+        this.segments = [{start: 0, end: 2*Math.PI}];
+        this.radius = (ind + 1)*ring_spacing;
         this.walls = [];
-        this.rotated = false; // flag to store whether holes are rotated
-        this.overlaps = [];
-        this.debug_holes = [];
+        this.whole = true;
     }
-    set_holes(coords) {
-        var coords_container = circumference_coords_given_coords(coords, this.diameter/2, ring_spacing, ring_thickness);
-        this.holes_coords = coords_container[0];
-        this.edge_ball_coords = coords_container[1];
-    }
-    add_walls(lower_level_ring) {
-        // /*
-        // repeat finding random wall radians position until no overlap with holes
-        var coords1 = this.holes_coords;
-        var coords2 = lower_level_ring.holes_coords;
-        var wall_rads = random_wall_rads(Math.ceil((this.ind + 1)*1.3));
-        // var wall_rads = random_wall_rads(1);
-        var validities = get_wall_validity(coords1, coords2, wall_rads);
-        // find new random wall rads as long as wall in hole
-        // while (walls_in_holes(coords1, coords2, wall_rads)) {
-        //     wall_rads = random_wall_rads(this.ind + 1);
-        // }
-        for (let index = 0; index < wall_rads.length; index++) {
-            this.walls.push(new Wall(this.ind, this.ind-1, wall_rads[index], validities[index], this, lower_level_ring));
-        }
-        // */
-    }
-    update() {
-        for (let index = 0; index < this.walls.length; index++) {
-            this.walls[index].update();
-        }
-        for (let index = 0; index < this.walls.length; index++) {
-            if (this.walls[index].invalid) {
-                this.walls[index].moving = true;
-                this.walls[index].update();
-            } else {
-                this.walls[index].moving = false;
+    add_walls(n_rings) {
+        if (this.ind < n_rings - 1) {
+            var walls_rads = get_walls_rads(this.radius, ring_thickness, ring_spacing);
+            for (let index = 0; index < walls_rads.length; index++) {
+                const wall_rad = walls_rads[index];
+                this.walls.push(new Wall(this.ind, wall_rad));
             }
         }
     }
-    set_hole_problems() {
-        // fills array with angles
+    dig_hole(ind_in_ring) {
+
+        var n_holes_max = this.walls.length;
+        // case: no outer walls --> look at next inner ring
+        if (this.walls.length == 0) {
+            n_holes_max = maze.rings[this.ind - 1].walls.length;
+        }
+
+        // identify position of hole
+        var first_center_rad = (1.5*Math.PI) + (2*Math.PI)/(n_holes_max*2);
+        var stepsize = (2*Math.PI)/n_holes_max;
+        var center_rad = wrap_around(first_center_rad + (ind_in_ring*stepsize));
+
+        var rad_distance = rad_dist(this.radius, ring_spacing);
+        var h_start_val = center_rad - (0.5*rad_distance)
+        var h_end_val = center_rad + (0.5*rad_distance)
+        var hole_rads = {hstart: h_start_val, hend: h_end_val};
+        
+        // identify segment to cut open
+        if (this.whole) {
+            var start_value = hole_rads.hend;
+            var end_value = hole_rads.hstart;
+            this.segments = [{start: start_value, end: end_value}];
+            this.whole = false;
+            return;
+        }
+        var new_segments = [];
+        for (let index = 0; index < this.segments.length; index++) {
+            const segment = this.segments[index];
+            if (rad_between_rads(center_rad, [segment.start, segment.end])) {
+                var new_seg1 = {start: segment.start, end: hole_rads.hstart};
+                var new_seg2 = {start: hole_rads.hend, end: segment.end};
+                new_segments.push(new_seg1);
+                new_segments.push(new_seg2);
+            } else {
+                new_segments.push(segment);
+            }
+        }
+        this.segments = new_segments;
+
+    }
+    remove_wall(wall_ind) {
+        this.walls[wall_ind].dug = true;
     }
     render() {
-        // draw line segments
-        for (let index = 0; index < this.holes_coords.length; index++) {
-            draw_circ_segment(this.diameter/2, {x: canvas.width/2, y: canvas.height/2}, "black", ring_thickness, this.holes_coords[index]);
+        // circle segments
+        for (let index = 0; index < this.segments.length; index++) {
+            const segment = this.segments[index];
+            draw_circle_segment(center_coord, this.radius, segment, this.thickness);
         }
-        // draw edges
-        for (let index = 0; index < this.edge_ball_coords.length; index++) {
-            draw_circ(ring_thickness/2, this.edge_ball_coords[index], "black");
-        }
-        // draw walls
+        // walls
         for (let index = 0; index < this.walls.length; index++) {
-            this.walls[index].render();
-        }
-
-        // debug: problematic wall overlaps
-        for (let index = 0; index < this.overlaps.length; index++) {
-            const rad = this.overlaps[index];
-            // get outer coord
-            var outer_coord = get_exact_coord(rad, 300, false);
-            draw_line([center_coord, outer_coord], "red", 2);
-        }
-
-        // problematic holes
-        for (let index = 0; index < this.debug_holes.length; index++) {
-            draw_circ_segment(this.diameter/2, {x: canvas.width/2, y: canvas.height/2}, "red", ring_thickness/4, this.debug_holes[index]);
+            const wall = this.walls[index];
+            wall.render();
         }
     }
 }
 
-// instantiate objects
-add_values();
-var player = new Player();
+class Maze {
+    constructor() {
+        this.n_rings = n_rings;
+        this.n_cells = 0;
+        this.init_n_items();
+        this.init_rings();
+        this.ring_spacing = ring_spacing;
+        this.visited_cells = [];
+        this.paths = [];
+        this.main_path = [];
+        this.dead_ends = [];
+        this.best_path = [];
+        this.items = [];
+    }
+    init_n_items() {
+        // 1 = m*5 + n
+        // 1.5 = m*6 + n
+        // 2 = m*7 + n
+        // 2.5 = m*8 + n
+        // ...
+        // m = 0.5
+        // 2.5 + n = 1 --> n = -1.5
+        // MATH!
+        this.n_items = Math.max(0, 0.5*this.n_rings - 1.5);
+    }
+    init_rings() {
+        this.rings = [];
+        for (let index = 0; index < this.n_rings; index++) {
+            var ring = new Ring(index);
+            ring.add_walls(this.n_rings);
+            this.n_cells += ring.walls.length;
+            this.rings.push(ring);
+        }
+        this.n_cells += this.rings[0].walls.length;
+    }
+    init_items(paths) {
+        for (let item_ind = 0; item_ind < this.n_items; item_ind++) {
 
-// construct maze according to rules
-var layers = [];
-function create_network_layout() {
-    for (let index = 0; index < n_rings; index++) {
-        layers.push([]);
-        if (index == 0 || index == n_rings - 1) {
-            // only one node
-            layers[layers.length-1].push(new Node(index, 0));
-        } else {
-            // determine number of nodes
-            var dist_from_middle = Math.abs(index - (n_rings - 1)/2);
-            dist_from_middle *= -1;                 // reverse
-            dist_from_middle += (n_rings - 1)/2;    // minimum is 0
-            dist_from_middle /= (n_rings - 1)/2;    // standardize
-            var factor = dist_from_middle;
-            var n_nodes = Math.floor(factor*max_holes);
-            for (let index2 = 0; index2 < n_nodes; index2++) {
-                layers[layers.length-1].push(new Node(index, index2));
+            // make sure there are enough paths
+            if (paths.length-1 < item_ind) {
+                break;
             }
-        }
-    }
-    // set the dead ends, starting from last layer moving upwards
-    var last_layer_size = max_holes; // keeping track of n nodes in last layer
-    for (let index = layers.length-1; index >= 0; index--) {
-        const layer = layers[index];
-        var n_dead_ends = Math.floor(dead_end_frac*layer.length);
-        // adjust if last_layer_size smaller than current layer.length
-        if (last_layer_size < layer.length && n_dead_ends < last_layer_size) {
-            n_dead_ends = layer.length - last_layer_size;
-        }
-        // different case second-last layer: all but one are dead ends
-        if (index == layers.length-2) {
-            n_dead_ends = layer.length - 1;
-        }
-        var shuffle_array = [];
-        for (let i = 0; i < n_dead_ends; i++) {
-            shuffle_array.push(true);
-        }
-        for (let i = 0; i < layer.length - n_dead_ends; i++) {
-            shuffle_array.push(false);
-        }
-        shuffle_array = shuffle(shuffle_array);
-        for (let i = 0; i < shuffle_array.length; i++) {
-            layers[index][i].dead_end = shuffle_array[i];
-        }
-        last_layer_size = layer.length;
-    }
-    // set virtual nodes and connect them already
-    function add_virt_nodes(index, index2) {
-        // add virtual node in in next layer if dead end or already virtual
-        if (layers[index][index2].dead_end || layers[index][index2].virtual) {
-            var virt_node = new Node(index + 1, index2);
-            virt_node.virtual = true;
-            layers[index + 1].splice(index2, 0, virt_node);
-            // refresh all following IDs in this layer
-            for (let index3 = index2 + 1; index3 < layers[index + 1].length; index3++) {
-                layers[index + 1][index3].id++;
+            const de = paths[item_ind];
+            const lc = de[de.length-1];
+
+            // skip if in innermost ring
+            if (lc.space_ind == 0) {
+                continue;
             }
-            layers[index + 1][index2].set_parent(layers[index][index2]);
+
+            this.items.push(new Item(lc.pos));
         }
     }
-    
-    for (let index = 0; index < layers.length - 1; index++) {
-        for (let index2 = 0; index2 < layers[index].length; index2++) {
-            add_virt_nodes(index, index2);
+    dig() {
+        var current_cell = this.get_random_start_cell();
+
+        // while there are still unvisited cells
+        while (this.visited_cells.length < this.n_cells) {
+
+            var current_neighbours = current_cell.get_neighbours();
+            var unvisited_neighbours = this.get_unvisited_neighbours(current_neighbours);
+            
+            var inserted_dead_end = false;  
+
+            while (unvisited_neighbours.length == 0) {
+
+                // dead end! go back --> only insert once
+                if (!inserted_dead_end) {
+                    this.dead_ends.push([]);
+                    for (let index = 0; index < this.main_path.length; index++) {
+                        const cell = this.main_path[index];
+                        this.dead_ends[this.dead_ends.length-1].push(cell);
+                        inserted_dead_end = true;
+                    }
+                    this.dead_ends[this.dead_ends.length-1].push(current_cell);
+                }
+
+                this.main_path.pop();
+                current_cell = this.main_path[this.main_path.length-1];
+                current_neighbours = current_cell.get_neighbours();
+                unvisited_neighbours = this.get_unvisited_neighbours(current_neighbours);
+            }
+
+            // select random neighbour
+            var next_cell = this.get_random_neighbour(unvisited_neighbours);
+
+            // actually dig
+            this.dig_place(current_cell, next_cell);
+
+            // add to main path
+            this.main_path.push(next_cell);
+
+            // refresh current cell
+            current_cell = next_cell;
+
+            // if cell is valid
+            this.visited_cells.push(current_cell);
         }
+
+        // add to paths
+        this.paths.push(this.main_path);
+        for (let index = 0; index < this.dead_ends.length; index++) {
+            const dead_end = this.dead_ends[index];
+            this.paths.push(dead_end);
+        }
+
+        // dig exit
+        this.dig_exit();
     }
-    
-    // connect the nodes
-    for (let index = layers.length-1; index > 0; index--) {
-        // going backwards, stopping at second layer
-        // setting the parent of each node
-        var upper_passage_count = 0;
-        for (let i = 0; i < layers[index - 1].length; i++) {
-            const node = layers[index - 1][i];
-            if (!node.dead_end && !node.virtual) { upper_passage_count++; }
-        }
-        var nonvirtual_count = layers[index].length;
-        var nonvirtual_ids = [];
-        for (let i = 0; i < layers[index].length; i++) {
-            const node = layers[index][i];
-            if (node.virtual) {
-                nonvirtual_count--;
+    dig_place(cell1, cell2) {
+        // identify separating maze component and erase
+        if (cell1.space_ind != cell2.space_ind) {
+            // 1. ring segment
+            // 1.1 identify ring
+            var ring_ind = Math.min(cell1.space_ind, cell2.space_ind);
+            // 1.2 identify if same number of cells
+            var n_cells1 = cell1.get_n_cells_in_space(cell1.space_ind);
+            var n_cells2 = cell1.get_n_cells_in_space(cell2.space_ind);
+            if (n_cells1 == n_cells2) {
+                // 1.2.1 same number of cells in space
+                this.rings[ring_ind].dig_hole(cell1.ind_in_space);
             } else {
-                nonvirtual_ids.push(node.id);
+                // 1.2.2 not same number of cells in space
+                var ind_in_ring = Math.max(cell1.ind_in_space, cell2.ind_in_space);
+                this.rings[ring_ind].dig_hole(ind_in_ring);
+            }
+        } else {
+            // 2. wall
+            // only dig in space where there are walls!
+            if (cell1.space_ind > 0) {
+                var n_cells = cell1.get_n_cells_in_space(cell1.space_ind);
+                var ring_ind = cell1.space_ind - 1;
+                var min_ind = Math.min(cell1.ind_in_space, cell2.ind_in_space);
+                var max_ind = Math.max(cell1.ind_in_space, cell2.ind_in_space);
+                if (min_ind == 0 && max_ind == n_cells-1) {
+                    // 2.1 wrap around
+                    this.rings[ring_ind].remove_wall(0);
+                } else {
+                    // 2.2 no wrap around
+                    this.rings[ring_ind].remove_wall(max_ind);
+                }
             }
         }
-    
-        if (nonvirtual_count == upper_passage_count) { // one parent one child
-            // /*
-    
-            var upper_id = 0;
-            for (let i = 0; i < nonvirtual_ids.length; i++) {
-                const nonvirtual_id = nonvirtual_ids[i];
-                for (let j = upper_id; j < layers[index - 1].length; j++) {
-                    if (!layers[index - 1][j].dead_end && !layers[index - 1][j].virtual) {
-                        layers[index][nonvirtual_id].set_parent(layers[index - 1][j]);
-                        upper_id = j + 1;
+    }
+    dig_exit() {
+
+        var potential_paths = [];
+
+        // 1. identify potential paths
+        for (let index = 0; index < this.paths.length; index++) {
+            const path = this.paths[index];
+            for (let index2 = 0; index2 < path.length; index2++) {
+                const cell = path[index2];
+                if (cell.space_ind == this.rings.length-1) {
+                    potential_paths.push(path);
+                    break;
+                }
+            }
+        }
+
+        // 2. identify longest path
+        var current_max_len = 0;
+        var current_max_ind = -1;
+        var potential_paths_copy = [];
+
+        for (let index = 0; index < potential_paths.length; index++) {
+            var path = potential_paths[index];
+            var last_cell = path[path.length-1];
+            potential_paths_copy.push(get_object_list_copy(path));
+            while (last_cell.space_ind != this.rings.length-1) {
+                path.pop();
+                last_cell = path[path.length-1];
+            }
+            if (path.length > current_max_len) {
+                current_max_len = path.length;
+                current_max_ind = index;
+            }
+        }
+
+        var best_path = potential_paths[current_max_ind];
+        var furthest_cell = best_path[best_path.length-1];
+        this.best_path = best_path;
+
+        potential_paths_copy.splice(current_max_ind, 1);
+        var potential_paths_lengths = this.get_path_deviation_lengths(potential_paths_copy, best_path);
+        potential_paths_copy = sort_list_to_another_list(potential_paths_copy, potential_paths_lengths);
+
+        // dig exit
+        this.rings[this.rings.length-1].dig_hole(furthest_cell.ind_in_space);
+
+        this.init_items(potential_paths_copy);
+
+    }
+    get_path_deviation_lengths(paths, main_path) {
+        // return an array of integers: number of cells
+        // that don't match main path
+        var output = [];
+
+        for (let index = 0; index < main_path.length; index++) {
+            const mpc = main_path[index];
+            for (let index2 = 0; index2 < paths.length; index2++) {
+                const p = paths[index2];
+                for (let index3 = 0; index3 < p.length; index3++) {
+                    const pc = p[index3];
+                    if (pc.space_ind != mpc.space_ind || pc.ind_in_space != mpc.ind_in_space) {
+                        output.push(p.length - index3 + 1);
                         break;
                     }
                 }
             }
-    
-            // */
-    
-        } else { // multiple children per parent
-    
-            // /*
-    
-            var n_children_exceed = nonvirtual_count - upper_passage_count;
-            // pick randomly from among parents which have multiple children - store number
-            for (var i=0; i<n_children_exceed; i++) {
-                var rand_id = Math.floor(Math.random()*layers[index - 1].length);
-                // make sure no dead end or virtual node is targetted
-                while (layers[index - 1][rand_id].dead_end || layers[index - 1][rand_id].virtual) {
-                    var rand_id = Math.floor(Math.random()*layers[index - 1].length);
+        }
+
+        return output;
+
+    }
+    get_random_neighbour(neighbours) {
+        var l = neighbours.length;
+        var rand = Math.random();
+        // make absolutely shure there's no index error
+        while (rand == 1) {
+            rand = Math.random();
+        }
+        return neighbours[Math.floor(rand*l)];
+    }
+    get_random_start_cell() {
+        var cell = new Cell(0, 0);
+        var n_cells = cell.get_n_cells_in_space(0);
+        var rand = Math.random();
+        // make absolutely shure there's no index error
+        while (rand == 1) {
+            rand = Math.random();
+        }
+        var rand_ind_in_space = Math.floor(rand*n_cells);
+        return new Cell(0, rand_ind_in_space);
+    }
+    get_unvisited_neighbours(neighbours) {
+        var valid_neighbours = [];
+        for (let index = 0; index < neighbours.length; index++) {
+            const n = neighbours[index];
+            var visited = false;
+            for (let index2 = 0; index2 < this.visited_cells.length; index2++) {
+                const v = this.visited_cells[index2];
+                if (n.space_ind == v.space_ind && n.ind_in_space == v.ind_in_space) {
+                    visited = true;
                 }
-                layers[index - 1][rand_id].n_children++;
             }
-            var lower_id = 0;
-    
-            // */
-    
-            // /*
-    
-            for (let i = 0; i < layers[index - 1].length; i++) {
-                const upper_node = layers[index - 1][i];
-                var n_c = upper_node.n_children + 1; // + 1 because only exceeded children are noted --> one at least
-                if (!upper_node.dead_end && !upper_node.virtual) {
-                    for (let j = 0; j < n_c; j++) {
-                        while (layers[index][lower_id].virtual) {
-                            lower_id++;
-                        }
-                        layers[index][lower_id].set_parent(layers[index - 1][i]);
-                        lower_id++;
-                    }
-                }
+            if (!visited) {
+                valid_neighbours.push(n);
             }
-    
-            // */
-    
+        }
+        return valid_neighbours;
+    }
+    render() {
+        // draw rings
+        for (let index = 0; index < this.rings.length; index++) {
+            const ring = this.rings[index];
+            ring.render();
+        }
+        // draw walls
+        // included in rings
+        // draw items
+        for (let index = 0; index < this.items.length; index++) {
+            const item = this.items[index];
+            item.render();
+        }
+    }
+    update() {
+        for (let index = 0; index < this.items.length; index++) {
+            const item = this.items[index];
+            item.update();
         }
     }
 }
-function overlap_network(layers) {
-    // returns false when there is no overlap
-    for (let index = 0; index < layers.length - 1; index++) {
-        for (let index2 = 0; index2 < layers[index].length - 1; index2++) {
-            const node = layers[index][index2];
-            // get rightmost child
-            right_id = node.get_id_of_rightmost_child();
-            for (let index3 = index2 + 1; index3 < layers[index].length; index3++) {
-                const node_right = layers[index][index3];
-                // get leftmost child
-                left_id = node_right.get_id_of_leftmost_child();
-                if (left_id < right_id) {
-                    return true;
-                }
+
+class Cell {
+    constructor(space_ind, ind_in_space) {
+        this.space_ind = space_ind;
+        this.ind_in_space = ind_in_space;
+        this.set_pos();
+    }
+    get_neighbours() {
+        // neighbours inner, outer, sidewards
+        var neighbours = [];
+
+        // 1. vertical neighbours
+        // 1.1 get indices of spaces
+        var inner_neighbour_ind = -1;
+        var outer_neighbour_ind = -1;
+        if (this.space_ind > 0) {
+            var inner_neighbour_ind = this.space_ind - 1;
+        }
+        if (this.space_ind < maze.rings.length-1) {
+            var outer_neighbour_ind = this.space_ind + 1;
+        }
+        // 1.2 get indices in space
+        var current_n_cells = this.get_n_cells_in_space(this.space_ind);
+        // 1.2.1 inner
+        if (inner_neighbour_ind > -1) {
+            // compare number of cells
+            var inner_n_cells = this.get_n_cells_in_space(inner_neighbour_ind);
+            if (inner_n_cells < current_n_cells) {
+                // 1.2.1.1 get index in space, halved
+                var inner_ind_in_space = Math.floor(this.ind_in_space/2);
+                neighbours.push(new Cell(inner_neighbour_ind, inner_ind_in_space));
+            } else {
+                // 1.2.1.2 get index in space, same inde
+                neighbours.push(new Cell(inner_neighbour_ind, this.ind_in_space));
             }
         }
-    }
-    // no overlap problems
-    return false;
-}
-function overlap_holes(inner_layer, new_coords) {
-
-    rings[inner_layer.ind + 1].overlaps = [];
-    rings[inner_layer.ind + 1].debug_holes = [];
-    var output = false; // flags if overlaps detected
-
-    var inner_holes = holes_from_coords(inner_layer.holes_coords);
-    // var inner_holes = inner_layer.holes_coords;
-    // var this_holes = new_coords;
-    var this_holes = holes_from_coords(new_coords);
-
-    rings[inner_layer.ind + 1].overlaps.push(inner_holes[0].start);
-    rings[inner_layer.ind + 1].overlaps.push(inner_holes[0].end);
-    rings[inner_layer.ind + 1].debug_holes.push(inner_holes[0]);
-
-    for (let index = 0; index < inner_holes.length; index++) {
-        const inner_coord = inner_holes[index];
-        for (let index2 = 0; index2 < this_holes.length; index2++) {
-            const this_coord = this_holes[index2];
-            console.log(inner_coord, this_coord);
-            var problem = overlap_two_holes(inner_coord, this_coord, [false, false]);
-            if (problem[0]) {
-                // rings[inner_layer.ind + 1].overlaps.push(problem[1].start);
-                // rings[inner_layer.ind + 1].overlaps.push(problem[1].end);
-                // rings[inner_layer.ind + 1].debug_holes.push(problem[1]);
-                output = true;
+        // 1.2.2 outer
+        if (outer_neighbour_ind > -1) {
+            // compare number of cells
+            var outer_n_cells = this.get_n_cells_in_space(outer_neighbour_ind);
+            if (current_n_cells < outer_n_cells) {
+                // 1.2.1.1 get index in space, doubled --> two cells
+                var outer_ind_in_space1 = this.ind_in_space*2;
+                var outer_ind_in_space2 = this.ind_in_space*2 + 1;
+                neighbours.push(new Cell(outer_neighbour_ind, outer_ind_in_space1));
+                neighbours.push(new Cell(outer_neighbour_ind, outer_ind_in_space2));
+            } else {
+                // 1.2.1.2 same number
+                neighbours.push(new Cell(outer_neighbour_ind, this.ind_in_space));
             }
         }
+
+        // 1. horizontal neighbours
+        var n_cells_this_space = this.get_n_cells_in_space(this.space_ind);
+        // 1.1 left neighbour
+        if (this.ind_in_space == 0) {
+            var left_ind_in_space = n_cells_this_space-1;
+            neighbours.push(new Cell(this.space_ind, left_ind_in_space));
+        } else {
+            neighbours.push(new Cell(this.space_ind, this.ind_in_space-1));
+        }
+        // 1.2 right neighbour
+        if (this.ind_in_space == n_cells_this_space-1) {
+            var right_ind_in_space = 0;
+            neighbours.push(new Cell(this.space_ind, right_ind_in_space));
+        } else {
+            neighbours.push(new Cell(this.space_ind, this.ind_in_space+1));
+        }
+        
+        return neighbours;
     }
-
-    return output;
-
-    //     var start_hole = overlap_hole_region(inner_layer.holes_coords[index].start, new_coords, true, flip=true, flipc=false);
-    //     var end_hole = overlap_hole_region(inner_layer.holes_coords[index].end, new_coords, true, flip=true, flipc=false);
-
-    //     if (start_hole[0]) {
-    //         rings[inner_layer.ind + 1].overlaps.push(inner_layer.holes_coords[index].start);
-    //         rings[inner_layer.ind + 1].debug_holes.push(start_hole[1]);
-    //         problems = true; // return true;
-    //     }
-
-    //     if (end_hole[0]) {
-    //         rings[inner_layer.ind + 1].overlaps.push(inner_layer.holes_coords[index].end);
-    //         rings[inner_layer.ind + 1].debug_holes.push(end_hole[1]);
-    //         problems = true; // return true;
-    //     }
-    // }
-    
-    // // no problems
-    // return problems;
-}
-function maze_holes_any_overlap(layers) {
-    for (let index = 0; index < layers.length - 1; index++) {
-        const layer1 = layers[index];
-        const layer2 = layers[index + 1];
-        if (overlap_holes(layer1, layer2)) { return true; }
+    get_n_cells_in_space(space_ind) {
+        if (space_ind == 0) {
+            return maze.rings[0].walls.length;
+        }
+        return maze.rings[space_ind - 1].walls.length;
     }
-    return false;
-}
-function set_coords_debug() {
-    const layer = layers[hole_problem_level];
-    var coords = circumference_coords_simpler(layer.length, start_rot);
-    rings[hole_problem_level].set_holes(coords);
-    start_rot = (start_rot + 0.005)%1;
-    coords = circumference_coords_simpler(layer.length, start_rot);
-    rings[hole_problem_level].set_holes(coords);
-    if (!overlap_holes(rings[hole_problem_level-1], rings[hole_problem_level].holes_coords)) {
-        // rings[hole_problem_level].overlaps = [];
-        // hole_problem_level++;
-    } else {
-        //
+    set_pos() {
+        // 1. get radians position
+        // 1.1 get number of possible positions
+        var n_rads_max = this.get_n_cells_in_space(this.space_ind);
+        // 1.2 derive the rad
+        var rad = rad_from_ind(n_rads_max, this.ind_in_space);
+        // 2. get distance to center
+        var dist_from_center = this.space_ind*ring_spacing + 0.5*ring_spacing;
+        // 3. derive coord from rad and distance
+        this.pos = rad_to_coord(rad, dist_from_center);
+        // this.pos = coord_from_rad_distance(center_coord, dist_from_center, rad);
     }
 }
-function set_coords_of_nodes(layers) {
-    // set maximum rotation if adjacent rings have same number of holes
-    // special case innermost ring: rotation does not matter
-    var coords = circumference_coords_simpler(layers[0].length, start_rot);
-    rings[0].set_holes(coords);
-    // for (let index = 1; index < layers.length; index++) {
-    //     const layer = layers[index];
-    //     var rot = Math.random();
-    //     var coords = circumference_coords_simpler(layer.length, rot);
-    //     rings[index].set_holes(coords);
-    //     while (overlap_holes(rings[index-1], rings[index].holes_coords) && !cancelled) {
-    //         console.log('holes problem');
-    //         rot = (rot + 0.01)%1;
-    //         coords = circumference_coords_simpler(layer.length, rot);
-    //         rings[index].set_holes(coords);
-    //     }
-    //     console.log('no holes prob');
-    //     rings[index].set_holes(coords);
-    // }
-}
 
-create_network_layout();
-var network_invalid = overlap_network(layers);
-while (network_invalid) {
-    layers = [];
-    create_network_layout();
-    network_invalid = overlap_network(layers);
-}
-// add rings and walls
-for (let index = 0; index < layers.length; index++) {
-    var new_ring = new Ring(index, Math.random(), layers[index].length);
+new_level(7);
 
-    // walls
-    /*
-    if (index > 0) { // innermost ring has no walls itself
-        var prev_ring = rings[rings.length-1];
-        new_ring.add_walls(prev_ring);
-    }
-    // */
-    rings.push(new_ring);
-}
-set_coords_of_nodes(layers);
-
-// debug: draw network
-display_network(layers, max_holes);
-
-// overall update function
 function update() {
-    // run changes (update objects)
+    // updating objects
     player.update();
-    for (let index = 0; index < rings.length; index++) {
-        rings[index].update();
-    }
-
-    // debug
-    if (hole_problem_level < n_rings) {
-        set_coords_debug();
-    }
-
-    // draw all changes
-    draw();
-    // get animation going
-    // requestAnimationFrame(update);
+    maze.update();
+    // draw functions
+    render();
+    // keep animation going
+    window.requestAnimationFrame(update);
 }
 
-// overall draw function
-function draw() {
+function render() {
     // refresh
-    set_canvas_bg("lightblue");
-    // draw maze
-    for (let index = 0; index < rings.length; index++) {
-        rings[index].render();
-    }
-    // draw player
+    refresh_canvas("white");
+    // draw objects
+    maze.render();
     player.render();
 }
 
-// debug
-var debug_index = 0;
-var debug_index2 = 0;
-
-// event listener actions
 function keydown(e) {
-    // left
-    if (e.keyCode == 37) { player.leftmove = true; }
-    // up
-    if (e.keyCode == 38) { player.upmove = true; }
-    // right
-    if (e.keyCode == 39) { player.rightmove = true; }
-    // down
-    if (e.keyCode == 40) { player.downmove = true; }
 
-    // enter --> debug rotate walls
-    if (e.keyCode == 13) { 
-        for (let index = 0; index < rings.length; index++) {
-            for (let index2 = 0; index2 < rings[index].walls.length; index2++) {
-                rings[index].walls[index2].moving = true;
-            }
-        }
-
-        // debug
-        update();
-        // if (debug_index2 + 1 < layers[debug_index].length) {
-        //     debug_index2++;
-        // } else if (debug_index + 1 < layers.length - 1) {
-        //     debug_index++;
-        //     debug_index2 = 0;
-        // }
-        // add_virt_nodes(debug_index, debug_index2);
-        // set_canvas_bg("lightblue");
-        // display_network(layers, max_holes, [debug_index, debug_index2]);
-        // for (let index = 0; index < layers.length - 1; index++) {
-        //     for (let index2 = 0; index2 < layers[index].length; index2++) {
-                
-        //     }
-        // }
-
+    if (e.code == "ArrowUp") {
+        player.moveup = true;
     }
-
-    // S, W --> debug increase player size
-    if (e.keyCode == 87) {
-        player.radius += 20*size_grow;
-        hole_problem_level++;
+    if (e.code == "ArrowDown") {
+        player.movedown = true;
     }
-    // S, W --> debug increase player size
-    if (e.keyCode == 83 && player.radius > 1 + size_grow) { 
-        player.radius -= 20*size_grow;
+    if (e.code == "ArrowLeft") {
+        player.moveleft = true;
     }
-    // Q, E --> make circular movements
-    if (e.keyCode == 81) { player.CCWmove = true; }
-    if (e.keyCode == 69) { player.CWmove = true; }
-
+    if (e.code == "ArrowRight") {
+        player.moveright = true;
+    }
 }
+
 function keyup(e) {
-    // left
-    if (e.keyCode == 37) { player.leftmove = false; }
-    // up
-    if (e.keyCode == 38) { player.upmove = false; }
-    // right
-    if (e.keyCode == 39) { player.rightmove = false; }
-    // down
-    if (e.keyCode == 40) { player.downmove = false; }
-
-    // enter
-    if (e.keyCode == 13) { 
-        for (let index = 0; index < rings.length; index++) {
-            for (let index2 = 0; index2 < rings[index].walls.length; index2++) {
-                rings[index].walls[index2].moving = false;
-            }
-        }
+    
+    if (e.code == "ArrowUp") {
+        player.moveup = false;
     }
-
-    // Q, E --> make circular movements
-    if (e.keyCode == 81) { player.CCWmove = false; }
-    if (e.keyCode == 69) { player.CWmove = false; }
+    if (e.code == "ArrowDown") {
+        player.movedown = false;
+    }
+    if (e.code == "ArrowLeft") {
+        player.moveleft = false;
+    }
+    if (e.code == "ArrowRight") {
+        player.moveright = false;
+    }
 }
 
-// start game loop
-// update();
+// start the updating loop
+update();
