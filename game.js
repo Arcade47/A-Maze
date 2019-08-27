@@ -12,6 +12,7 @@ var absolute;
 var alpha;   
 var beta;    
 var gamma;
+var debugball;
 
 function new_level(set_n_rings) {
     n_rings = set_n_rings;
@@ -35,6 +36,7 @@ function new_level(set_n_rings) {
     player = new Player();
     maze = new Maze();
     maze.dig();
+    debugball = new DebugBall();
 }
 
 document.addEventListener('keyup', keyup);
@@ -281,6 +283,17 @@ class Item extends Ball {
             this.collision();
         }
 
+    }
+}
+
+class DebugBall extends Ball {
+    constructor() {
+        super();
+        this.pos = rad_to_coord(0, 100);
+        this.color = "red";
+    }
+    update(a, b, g) {
+        this.pos = rad_to_coord(degrees_to_rad(g), 100);
     }
 }
 
@@ -766,6 +779,7 @@ function render() {
     debug_draw_text(alpha, 100);
     debug_draw_text(beta, 150);
     debug_draw_text(gamma, 200);
+    debugball.render();
 }
 
 function keydown(e) {
