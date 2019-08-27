@@ -759,7 +759,7 @@ function update() {
 
 function render() {
     // refresh
-    refresh_canvas("white");
+    refresh_canvas("lightblue");
     // draw objects
     maze.render();
     player.render();
