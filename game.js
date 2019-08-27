@@ -290,7 +290,7 @@ class DebugBall extends Ball {
     constructor() {
         super();
         this.pos = rad_to_coord(0, 100);
-        this.color = "red";
+        this.color = "black";
     }
     update(a, b, g) {
         this.pos = rad_to_coord(degrees_to_rad(g), 100);
