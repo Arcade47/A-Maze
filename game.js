@@ -8,6 +8,10 @@ var growth_speed;
 var player;
 var maze;
 var whole_len = Math.min(canvas.width, canvas.height);
+var absolute;
+var alpha;   
+var beta;    
+var gamma;   
 
 function new_level(set_n_rings) {
     n_rings = set_n_rings;
@@ -35,6 +39,7 @@ function new_level(set_n_rings) {
 
 document.addEventListener('keyup', keyup);
 document.addEventListener('keydown', keydown);
+document.addEventListener("deviceorientation", device_rotation, true);
 
 class Ball {
     constructor(pos={x: center_coord.x, y: center_coord.y}, radius=ring_thickness/2) {
@@ -758,6 +763,7 @@ function render() {
     // draw objects
     maze.render();
     player.render();
+    debug_draw_text(alpha);
 }
 
 function keydown(e) {
@@ -790,6 +796,13 @@ function keyup(e) {
     if (e.code == "ArrowRight") {
         player.moveright = false;
     }
+}
+
+function device_rotation(e) {
+    absolute = e.absolute;
+    alpha    = e.alpha;
+    beta     = e.beta;
+    gamma    = e.gamma;
 }
 
 // start the updating loop
