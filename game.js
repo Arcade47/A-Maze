@@ -14,6 +14,8 @@ var beta;
 var gamma;
 var debugball;
 
+//
+
 function new_level(set_n_rings) {
     n_rings = set_n_rings;
     ring_spacing = whole_len/(n_rings*2.5);
