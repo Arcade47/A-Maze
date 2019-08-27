@@ -68,6 +68,9 @@ class Player extends Ball {
         this.contact_points = [];
         this.shrinking = false;
         this.shrinking_percentage = 0;
+        this.tilt_movement = false;
+        this.tilt_move_x = 0;
+        this.tilt_move_y = 0;
     }
     set_contact_points_walls(ring_ind, dist, outside) {
         if (ring_ind > 0 && !outside) {
@@ -207,6 +210,19 @@ class Player extends Ball {
             }
         }
     }
+    project_3Dtilt_to_2Dplane(alpha, beta, gamma) {
+
+        this.tilt_movement = true;
+
+        // up/down
+        var tilt_y_speed = player_speed/45 - player_speed;
+        if (tilt_y_speed >= -player_speed && tilt_y_speed <= player_speed) {
+            this.tilt_move_y = tilt_y_speed;
+        } else {
+            this.tilt_move_y = 0;
+        }
+
+    }
     update() {
         // store old pos
         this.old_pos = {x: this.pos.x, y: this.pos.y};
@@ -228,6 +244,12 @@ class Player extends Ball {
             if (this.movedown) {
                 this.pos.y += player_speed;
             }
+            if (this.tilt_movement) {
+                this.pos.x += this.tilt_move_x;
+                this.pos.y += this.tilt_move_y;
+                // reset tilt movement for next frame
+                this.tilt_movement = false;
+            }
             // collisions
             this.collision_resolution();
 
@@ -238,6 +260,7 @@ class Player extends Ball {
         } else {
             this.shrink();
         }
+
     }
 }
 
@@ -781,9 +804,10 @@ function render() {
     debug_draw_text(alpha, 100);
     debug_draw_text(beta, 150);
     debug_draw_text(gamma, 200);
-    debugball_alpha.render();
-    debugball_beta.render();
-    debugball_gamma.render();
+    
+    // debugball_alpha.render();
+    // debugball_beta.render();
+    // debugball_gamma.render();
 }
 
 function keydown(e) {
@@ -823,9 +847,12 @@ function device_rotation(e) {
     alpha    = Math.round(e.alpha);
     beta     = Math.round(e.beta);
     gamma    = Math.round(e.gamma);
-    debugball_alpha.update(alpha);
-    debugball_beta.update(beta);
-    debugball_gamma.update(gamma);
+
+    player.project_3Dtilt_to_2Dplane(alpha, beta, gamma);
+    
+    // debugball_alpha.update(alpha);
+    // debugball_beta.update(beta);
+    // debugball_gamma.update(gamma);
 }
 
 // start the updating loop
